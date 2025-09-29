@@ -47,7 +47,6 @@ REHOBOAM is a MetaTrader 5 Expert Advisor (EA) designed for pairs trading on use
 | `RiskRewardRatio`       | double      | 2.0     | Take-profit as multiple of stop-loss.                                |
 | `SL_Type`               | StopLossType| SL_ZScore | Stop-loss type: 0 (Z-Score) or 1 (Percentage).                    |
 | `StopLossPercent`       | double      | 0.8     | % of entry equity for stop-loss (if `SL_Type = SL_Percent`).        |
-| `ExpectedAdverseSpread` | double      | 0.01    | Expected spread move for sizing (if `SL_Type = SL_Percent`).        |
 
 ## Strategy Logic
 1. **Initialization**:
@@ -67,13 +66,13 @@ REHOBOAM is a MetaTrader 5 Expert Advisor (EA) designed for pairs trading on use
 
 3. **Position Sizing**:
    - For `SL_ZScore`: Risks `RiskPercent` of balance, assuming adverse move = 2*sigma.
-   - For `SL_Percent`: Risks `StopLossPercent` of balance, assuming adverse move = `ExpectedAdverseSpread`.
+   - For `SL_Percent`: Risks `StopLossPercent` of balance.
    - Adjusts lots to broker’s min/max/step requirements.
 
 ## Usage Notes
-- **Pair Selection**: Choose highly correlated pairs (e.g., XAUUSD-XAGUSD, AUDUSD-NZDUSD). Forex pairs like GBPUSD-EURUSD may have low spread volatility, requiring careful tuning of `ExpectedAdverseSpread`.
+- **Pair Selection**: Choose highly correlated pairs (e.g., XAUUSD-XAGUSD, AUDUSD-NZDUSD). Forex pairs like GBPUSD-EURUSD may have low spread volatility.
 - **Backtesting**: Use “Every tick” mode, enable commissions/slippage, and test over 1-2 years. Validate on out-of-sample data to avoid over-optimization.
-- **Optimization**: Focus on `EntryZScore` (1.8-2.2), `StopLossPercent` (0.25-0.4), `ExpectedAdverseSpread` (0.005-0.02), and `RiskRewardRatio` (1.5-2.5). Prioritize high Sharpe Ratio (>2), low Equity DD % (<2%), and Recovery Factor (>3).
+- **Optimization**: Focus on `EntryZScore` (1.8-2.2), `StopLossPercent` (0.25-0.4), and `RiskRewardRatio` (1.5-2.5). Prioritize high Sharpe Ratio (>2), low Equity DD % (<2%), and Recovery Factor (>3).
 - **Risk Management**: Ensure account balance supports margin for volatile pairs. Cap lot sizes if needed (modify `CalculateLots`).
 - **Broker Compatibility**: Verify symbols exist in Market Watch and support hedging. Check lot step sizes (e.g., 0.01 for forex).
 
@@ -83,7 +82,6 @@ Based on optimization results (see analysis below), a robust starting point:
 - `EntryZScore = 1.8`
 - `StopLossPercent = 0.8`
 - `SL_Type = SL_Percent`
-- `ExpectedAdverseSpread = 0.01` (tune based on pair’s historical spread volatility)
 - `RiskRewardRatio = 2.0`
 - `MinCorrelation = 0.5`
 - `LookbackPeriod = 20`
@@ -96,7 +94,6 @@ From optimization data:
   - `EntryZScore` 1.6-2.0 balances trade frequency and quality.
   - Higher `StopLossPercent` (>0.7) or `EntryZScore` (>2.6) often lead to losses/high DD.
 - **Recommendations**:
-  - Optimize `ExpectedAdverseSpread` (0.005-0.02) for `SL_Percent` to control sizing.
   - Test alternative pairs with higher spread volatility (e.g., XAUUSD-XAGUSD).
   - Cap max lots in `CalculateLots` to avoid margin issues.
 
