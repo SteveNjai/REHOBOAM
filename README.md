@@ -79,18 +79,18 @@ REHOBOAM is a MetaTrader 5 Expert Advisor (EA) designed for pairs trading on use
 
 ## Example Settings
 Based on optimization results (see analysis below), a robust starting point:
-- `SymbolA = XAUUSD`, `SymbolB = XAGUSD`
-- `EntryZScore = 2.0`
-- `StopLossPercent = 0.3`
+- `SymbolA = GBPUSD`, `SymbolB = EURUSD`
+- `EntryZScore = 1.8`
+- `StopLossPercent = 0.8`
 - `SL_Type = SL_Percent`
 - `ExpectedAdverseSpread = 0.01` (tune based on pair’s historical spread volatility)
 - `RiskRewardRatio = 2.0`
-- `MinCorrelation = 0.8`
+- `MinCorrelation = 0.5`
 - `LookbackPeriod = 20`
 
 ## Optimization Insights
 From optimization data:
-- **Best Settings**: EntryZScore=2.0, StopLossPercent=0.3 (Sharpe 2.69, Profit $534, DD 1.01%, 26 trades).
+- **Best Settings**: EntryZScore=1.8, StopLossPercent=0.8 (Sharpe 1.45, Profit $5375, DD 9.57%, 260 trades, TEST PERIOD:jan 1st 2024 to AUg 31st 2025).
 - **Observations**:
   - Lower `StopLossPercent` (0.3-0.5) yields higher Sharpe/Recovery, lower DD.
   - `EntryZScore` 1.6-2.0 balances trade frequency and quality.
@@ -129,5 +129,4 @@ Trading involves significant risk. Use REHOBOAM at your own risk. Backtest thoro
 For issues or suggestions, open an issue on GitHub or contact the maintainers.
 
 ---
-*Copyright 2025, xAI - Grok Implementation*  
-*https://x.ai/*
+*Copyright 2025, Stephen Njai*  
