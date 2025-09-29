@@ -4,7 +4,7 @@ REHOBOAM is a MetaTrader 5 Expert Advisor (EA) designed for pairs trading on use
 
 ## Features
 - **Pairs Trading Strategy**: Trades the spread between two assets (e.g., XAUUSD-XAGUSD, AUDUSD-NZDUSD) based on mean-reversion.
-- **Hedge Ratio Calculation**: Computes Beta using linear regression over a user-defined lookback period (default: 252 days).
+- **Hedge Ratio Calculation**: Computes Beta using linear regression over a user-defined lookback period (default: 252 days 9if using daily timeframe, else, 252 bars)).
 - **Z-Score Based Entries**: Opens long/short spread positions when the Z-Score exceeds a threshold (default: |Z| ≥ 2.0).
 - **Flexible Stop-Loss Options**:
   - Z-Score based stop-loss (default: |Z| ≥ 4.0).
