@@ -1,15 +1,15 @@
 //+------------------------------------------------------------------+
-//|                                             REHOBOAM-v1.mq5   |
-//|                        Copyright 2025, Stephen Njai |
-//|                                             https://github.com/SteveNjai       |
+//|                                             REHOBOAM-v1.1.mq5    |
+//|                        Copyright 2025, Stephen Njai               |
+//|                                             https://github.com/SteveNjai |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025, Stephen Njai"
 #property link      "https://github.com/SteveNjai"
-#property version   "1.00"
+#property version   "1.1"
 #property strict
 #property description "Pairs Trading EA utilizing correlation between pairs for user-specified symbols."
 #property description "Uses daily or 1H timeframe. Hedge ratio calculated on init with 252 days."
-#property description "Position sizing risks 1% of balance based on 2*sigma for stop at +/-4 Z or percentage based stop loss"
+#property description "Position sizing risks 1% of balance based on 2*sigma for stop at +/-4 Z or percentage based stop loss."
 #property description "Uses correlation as a proxy for cointegration."
 
 #include <Math\Stat\Math.mqh>
@@ -28,15 +28,16 @@ input string SymbolB = "";           // Symbol for Asset B (e.g., XAGUSD, leave 
 input ENUM_TIMEFRAMES Timeframe = PERIOD_D1; // Timeframe (Daily recommended)
 input int LookbackPeriod = 20;      // Lookback for mean and std dev of spread
 input int RegressionPeriod = 252;   // Lookback for hedge ratio calculation
-input double EntryZScore = 2.0;     // Entry threshold for |Z-Score|
+input double EntryZScore = 1.8;     // Entry threshold for |Z-Score|
 input double StopZScore = 4.0;      // Stop-loss threshold for |Z-Score| (used if SL_ZScore)
 input double RiskPercent = 1.0;     // Risk % of account balance per trade (for sizing)
-input double MinCorrelation = 0.8;  // Minimum correlation to allow trading
+input double MinCorrelation = 0.5;  // Minimum correlation to allow trading
 input bool BypassCorrelationCheck = false; // Bypass correlation check for testing (use with caution)
 input long MagicNumber = 12345;     // Magic number for positions
 input double RiskRewardRatio = 2.0; // Take profit multiple of stop loss
-input StopLossType SL_Type = SL_ZScore; // Stop loss type
-input double StopLossPercent = 2.0; // Stop loss % of entry equity (used if SL_Percent)
+input StopLossType SL_Type = SL_Percent; // Stop loss type
+input double StopLossPercent = 1.0; // Stop loss % of entry equity (used if SL_Percent)
+input double MaxLots = 2.0;         // Maximum lot size per trade to prevent margin issues
 
 // Globals
 double Beta = 0.0;
@@ -44,6 +45,24 @@ CTrade Trade;
 datetime LastBarTime = 0;
 double EntryZ = 0.0; // Entry Z-Score
 double EntryEquity = 0.0; // Equity at entry
+
+//+------------------------------------------------------------------+
+//| Check if market is open for both symbols                         |
+//+------------------------------------------------------------------+
+bool IsMarketOpen()
+  {
+   bool marketOpenA = SymbolInfoInteger(SymbolA, SYMBOL_TRADE_MODE) != SYMBOL_TRADE_MODE_DISABLED;
+   bool marketOpenB = SymbolInfoInteger(SymbolB, SYMBOL_TRADE_MODE) != SYMBOL_TRADE_MODE_DISABLED;
+   
+   if(!marketOpenA || !marketOpenB)
+     {
+      if(!marketOpenA) Print("Market closed for ", SymbolA);
+      if(!marketOpenB) Print("Market closed for ", SymbolB);
+      return false;
+     }
+   
+   return true;
+  }
 
 //+------------------------------------------------------------------+
 //| Custom covariance function                                       |
@@ -143,6 +162,9 @@ int OnInit()
 void OnTick()
   {
    if(!IsNewBar()) return;
+   
+   // Check if market is open for both symbols
+   if(!IsMarketOpen()) return;
    
    // Get historical closes
    double closesA[], closesB[];
@@ -350,7 +372,7 @@ double CalculateLots(double sigma)
    
    // Ensure within min/max lot sizes
    double minLot = SymbolInfoDouble(SymbolA, SYMBOL_VOLUME_MIN);
-   double maxLot = SymbolInfoDouble(SymbolA, SYMBOL_VOLUME_MAX);
+   double maxLot = MathMin(SymbolInfoDouble(SymbolA, SYMBOL_VOLUME_MAX), MaxLots); // Cap at MaxLots
    lotsA = MathMax(minLot, MathMin(maxLot, lotsA));
    
    return lotsA;
@@ -431,7 +453,7 @@ void OpenLongSpread(double lotsA, double lotsB, double zScore)
       lotsB = MathFloor(lotsB / lotStepB) * lotStepB;
    
    double minLotB = SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MIN);
-   double maxLotB = SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MAX);
+   double maxLotB = MathMin(SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MAX), MaxLots); // Cap at MaxLots
    lotsB = MathMax(minLotB, MathMin(maxLotB, lotsB));
    
    // Buy A
@@ -464,7 +486,7 @@ void OpenShortSpread(double lotsA, double lotsB, double zScore)
       lotsB = MathFloor(lotsB / lotStepB) * lotStepB;
    
    double minLotB = SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MIN);
-   double maxLotB = SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MAX);
+   double maxLotB = MathMin(SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MAX), MaxLots); // Cap at MaxLots
    lotsB = MathMax(minLotB, MathMin(maxLotB, lotsB));
    
    // Sell A
