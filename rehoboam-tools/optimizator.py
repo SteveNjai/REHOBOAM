@@ -46,7 +46,7 @@ def analyze_optimization_folder(folder_path):
     # Convert relevant columns to numeric
     numeric_cols = ['result', 'profit', 'expected_payoff', 'profit_factor',
                     'recovery_factor', 'sharpe_ratio', 'equity_dd_percent',
-                    'trades', 'entryzscore', 'stoplosspercent', 'forward_result', 'back_result']
+                    'trades', 'entryzscore', 'stoplosspercent']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -61,8 +61,7 @@ def analyze_optimization_folder(folder_path):
         'sharpe_ratio': ['mean', 'median'],
         'recovery_factor': ['mean', 'median'],
         'trades': ['mean'],
-        'forward_result': ['mean', 'median'],
-        'back_result': ['mean', 'median']
+        'result': ['mean', 'median']
     }).reset_index()
 
     # Flatten multi-index columns
@@ -73,7 +72,7 @@ def analyze_optimization_folder(folder_path):
 
     # Sort by high mean profit, low mean DD, high Sharpe, and high forward result
     grouped = grouped.sort_values(
-        by=['profit_mean', 'equity_dd_percent_mean', 'sharpe_ratio_mean', 'forward_result_mean'],
+        by=['profit_mean', 'equity_dd_percent_mean', 'sharpe_ratio_mean', 'result_mean'],
         ascending=[False, True, False, False]
     )
 
