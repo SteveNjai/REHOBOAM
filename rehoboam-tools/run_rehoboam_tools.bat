@@ -11,9 +11,10 @@ echo =====================
 echo 1. Run create_price_history.py (Generate price_history.csv)
 echo 2. Run cointegration_screen.py (Screen cointegrated pairs)
 echo 3. Run Optimizator.py (find best parameters from the optimization files)
-echo 4. Exit
+echo 4. Run spread_predictor.py (preedict the spread using past history from the price_history.csv)
+echo 5. Exit
 echo.
-set /p choice=Enter your choice (1-4):
+set /p choice=Enter your choice (1-5):
 
 if "%choice%"=="1" (
     echo Running create_price_history.py...
@@ -37,10 +38,17 @@ if "%choice%"=="1" (
     pause
     goto menu
 ) else if "%choice%"=="4" (
+    echo Running spread_predictor.py...
+    %PYTHON% "%SCRIPT_DIR%spread_predictor.py"
+    echo.
+    echo Script completed. Check spread_plot.png as well as terminal data. Press any key to return to menu.
+    pause
+    goto menu
+) else if "%choice%"=="5" (
     echo Exiting...
     exit /b
 ) else (
-    echo Invalid choice. Please enter 1, 2, or 3.
+    echo Invalid choice. Please enter 1, 2, 3, 4 or 5.
     echo.
     pause
     goto menu

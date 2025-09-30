@@ -1,0 +1,1182 @@
+//+------------------------------------------------------------------+
+//|                                             REHOBOAM-v2.0.mq5    |
+//|                        Copyright 2025, Stephen Njai               |
+//|                                             https://github.com/SteveNjai |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2025, Stephen Njai"
+#property link      "https://github.com/SteveNjai"
+#property version   "2.0"
+#property strict
+#property description "Enhanced Pairs Trading EA with ADF test, dynamic hedge ratio, and improved risk management"
+
+#include <Math\Stat\Math.mqh>
+#include <Trade\Trade.mqh>
+
+// Stop Loss Types
+enum StopLossType
+  {
+   SL_ZScore = 0,   // Z-Score based stop loss
+   SL_Percent = 1,  // Percentage based stop loss
+   SL_ATR = 2      // ATR based stop loss
+  };
+
+// Hedge Ratio Methods
+enum HedgeMethod
+  {
+   HEDGE_OLS = 0,      // Ordinary Least Squares
+   HEDGE_TLS = 1,      // Total Least Squares
+   HEDGE_ROLLING = 2   // Rolling Window
+  };
+
+// Trade Filter Types
+enum FilterType
+  {
+   FILTER_NONE = 0,        // No filter
+   FILTER_CORRELATION = 1,  // Correlation filter only
+   FILTER_ADF = 2,         // ADF test only
+   FILTER_BOTH = 3         // Both filters
+  };
+
+// Inputs - Symbols and Timeframe
+input string SymbolA = "";           // Symbol for Asset A
+input string SymbolB = "";           // Symbol for Asset B
+input ENUM_TIMEFRAMES Timeframe = PERIOD_D1; // Timeframe
+
+// Inputs - Strategy Parameters
+input int LookbackPeriod = 20;       // Lookback for mean and std dev of spread
+input int RegressionPeriod = 252;    // Lookback for hedge ratio calculation
+input double EntryZScore = 2.0;      // Entry threshold for |Z-Score|
+input double ExitZScore = 0.5;       // Exit threshold for mean reversion
+input double StopZScore = 4.0;       // Stop-loss threshold for |Z-Score|
+input HedgeMethod HedgeRatioMethod = HEDGE_ROLLING; // Hedge ratio calculation method
+input int HedgeUpdatePeriod = 20;    // Bars between hedge ratio updates (0 = no update)
+
+// Inputs - Risk Management
+input double RiskPercent = 1.0;      // Risk % of account balance per trade
+input double RiskRewardRatio = 2.0;  // Take profit multiple of stop loss
+input StopLossType SL_Type = SL_ATR; // Stop loss type
+input double StopLossPercent = 2.0;  // Stop loss % (if SL_Percent)
+input int ATR_Period = 14;           // ATR period for stop loss
+input double ATR_Multiplier = 3.0;   // ATR multiplier for stop loss
+input double MaxLots = 2.0;          // Maximum lot size per trade
+
+// Inputs - Trade Filters
+input FilterType TradeFilter = FILTER_BOTH; // Trade filter type
+input double MinCorrelation = 0.6;   // Minimum correlation to allow trading
+input double ADFCriticalValue = -2.86; // ADF critical value (5% significance)
+input bool AllowRebalancing = true;  // Allow position rebalancing
+input double RebalanceThreshold = 0.2; // Rebalance when hedge ratio changes by this %
+
+// Inputs - Position Management
+input long MagicNumber = 12345;      // Magic number for positions
+input int MaxSpreadPoints = 50;      // Maximum spread in points to open trade
+input bool UseTrailingStop = true;   // Use trailing stop
+input double TrailingStart = 1.5;    // Z-Score to start trailing
+input double TrailingStep = 0.5;     // Z-Score trailing step
+
+// Globals
+double Beta = 0.0;
+double PreviousBeta = 0.0;
+CTrade Trade;
+datetime LastBarTime = 0;
+double EntryZ = 0.0;
+double EntryEquity = 0.0;
+double TrailingStopZ = 0.0;
+int BarssSinceHedgeUpdate = 0;
+double LastADFStatistic = 0.0;
+double LastCorrelation = 0.0;
+bool IsCointegrated = false;
+
+// Performance tracking
+int TotalTrades = 0;
+int WinningTrades = 0;
+double TotalProfit = 0.0;
+double MaxDrawdown = 0.0;
+double PeakEquity = 0.0;
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+  {
+   Trade.SetExpertMagicNumber(MagicNumber);
+   Trade.SetDeviationInPoints(10);
+   Trade.SetTypeFilling(ORDER_FILLING_IOC);
+   
+   // Validate symbol inputs
+   if(StringLen(SymbolA) == 0 || StringLen(SymbolB) == 0)
+     {
+      Print("Error: Symbols must be specified");
+      return(INIT_PARAMETERS_INCORRECT);
+     }
+   
+   // Verify symbols exist
+   if(!SymbolSelect(SymbolA, true) || !SymbolSelect(SymbolB, true))
+     {
+      Print("Error: Symbols not available in Market Watch");
+      return(INIT_FAILED);
+     }
+   
+   // Initial hedge ratio calculation
+   if(!CalculateHedgeRatio())
+     {
+      Print("Failed to calculate initial hedge ratio");
+      return(INIT_FAILED);
+     }
+   
+   // Perform cointegration test if required
+   if(TradeFilter == FILTER_ADF || TradeFilter == FILTER_BOTH)
+     {
+      IsCointegrated = TestCointegration();
+      if(!IsCointegrated)
+        {
+         Print("Warning: Pair fails cointegration test. ADF Statistic: ", 
+               StringFormat("%.4f", LastADFStatistic));
+        }
+     }
+   
+   PeakEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+   
+   Print("=== REHOBOAM v2.0 Initialized ===");
+   Print("Pair: ", SymbolA, " / ", SymbolB);
+   Print("Initial Hedge Ratio: ", StringFormat("%.4f", Beta));
+   Print("Correlation: ", StringFormat("%.4f", LastCorrelation));
+   if(TradeFilter == FILTER_ADF || TradeFilter == FILTER_BOTH)
+      Print("ADF Statistic: ", StringFormat("%.4f", LastADFStatistic), 
+            " (Cointegrated: ", IsCointegrated ? "Yes" : "No", ")");
+   
+   return(INIT_SUCCEEDED);
+  }
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+  {
+   if(!IsNewBar()) return;
+   
+   // Update hedge ratio periodically if configured
+   if(HedgeUpdatePeriod > 0 && ++BarssSinceHedgeUpdate >= HedgeUpdatePeriod)
+     {
+      UpdateHedgeRatio();
+      BarssSinceHedgeUpdate = 0;
+     }
+   
+   // Check market conditions
+   if(!IsMarketOpen() || !CheckSpreadConditions()) return;
+   
+   // Calculate current Z-Score
+   double zScore = CalculateZScore();
+   if(zScore == 0) return; // Error in calculation
+   
+   // Update performance metrics
+   UpdatePerformanceMetrics();
+   
+   // Get current position status
+   int direction = GetPositionDirection();
+   
+   // Position management
+   if(direction == 0)
+     {
+      // Check for entry signals
+      CheckEntrySignals(zScore);
+     }
+   else
+     {
+      // Manage existing position
+      ManagePosition(direction, zScore);
+      
+      // Check for rebalancing
+      if(AllowRebalancing)
+         CheckRebalancing(direction);
+     }
+   
+   // Display status
+   DisplayStatus(zScore);
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate hedge ratio using selected method                      |
+//+------------------------------------------------------------------+
+bool CalculateHedgeRatio()
+  {
+   double closesA[], closesB[];
+   ArraySetAsSeries(closesA, true);
+   ArraySetAsSeries(closesB, true);
+   
+   if(CopyClose(SymbolA, Timeframe, 0, RegressionPeriod, closesA) < RegressionPeriod ||
+      CopyClose(SymbolB, Timeframe, 0, RegressionPeriod, closesB) < RegressionPeriod)
+     {
+      Print("Error: Insufficient historical data");
+      return false;
+     }
+   
+   PreviousBeta = Beta;
+   
+   switch(HedgeRatioMethod)
+     {
+      case HEDGE_OLS:
+         Beta = CalculateOLS(closesA, closesB);
+         break;
+      case HEDGE_TLS:
+         Beta = CalculateTLS(closesA, closesB);
+         break;
+      case HEDGE_ROLLING:
+         Beta = CalculateRollingBeta(closesA, closesB);
+         break;
+     }
+   
+   // Calculate correlation for filtering
+   LastCorrelation = CalculateCorrelation(closesA, closesB);
+   
+   // Validate hedge ratio
+   if(Beta <= 0 || Beta > 100)
+     {
+      Print("Invalid hedge ratio: ", Beta);
+      Beta = PreviousBeta > 0 ? PreviousBeta : 1.0;
+      return false;
+     }
+   
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//| OLS Regression for hedge ratio                                   |
+//+------------------------------------------------------------------+
+double CalculateOLS(double &pricesA[], double &pricesB[])
+  {
+   int n = ArraySize(pricesA);
+   double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+   
+   for(int i = 0; i < n; i++)
+     {
+      sumX += pricesB[i];
+      sumY += pricesA[i];
+      sumXY += pricesB[i] * pricesA[i];
+      sumX2 += pricesB[i] * pricesB[i];
+     }
+   
+   double denominator = n * sumX2 - sumX * sumX;
+   if(MathAbs(denominator) < 0.00001) return 1.0;
+   
+   return (n * sumXY - sumX * sumY) / denominator;
+  }
+
+//+------------------------------------------------------------------+
+//| Total Least Squares for hedge ratio                              |
+//+------------------------------------------------------------------+
+double CalculateTLS(double &pricesA[], double &pricesB[])
+  {
+   int n = ArraySize(pricesA);
+   double meanA = MathMean(pricesA);
+   double meanB = MathMean(pricesB);
+   
+   double sxx = 0, syy = 0, sxy = 0;
+   for(int i = 0; i < n; i++)
+     {
+      double dx = pricesB[i] - meanB;
+      double dy = pricesA[i] - meanA;
+      sxx += dx * dx;
+      syy += dy * dy;
+      sxy += dx * dy;
+     }
+   
+   double lambda = (syy - sxx + MathSqrt((syy - sxx) * (syy - sxx) + 4 * sxy * sxy)) / (2 * sxy);
+   
+   return MathAbs(lambda);
+  }
+
+//+------------------------------------------------------------------+
+//| Rolling window beta calculation                                  |
+//+------------------------------------------------------------------+
+double CalculateRollingBeta(double &pricesA[], double &pricesB[])
+  {
+   // Use exponentially weighted calculation for more recent emphasis
+   int n = ArraySize(pricesA);
+   double alpha = 2.0 / (LookbackPeriod + 1); // EMA factor
+   double weightedCov = 0, weightedVarB = 0;
+   double ewmaA = pricesA[n-1], ewmaB = pricesB[n-1];
+   
+   for(int i = n-2; i >= 0; i--)
+     {
+      double oldEwmaA = ewmaA;
+      double oldEwmaB = ewmaB;
+      ewmaA = alpha * pricesA[i] + (1 - alpha) * ewmaA;
+      ewmaB = alpha * pricesB[i] + (1 - alpha) * ewmaB;
+      
+      weightedCov = alpha * (pricesA[i] - oldEwmaA) * (pricesB[i] - oldEwmaB) + 
+                    (1 - alpha) * weightedCov;
+      weightedVarB = alpha * (pricesB[i] - oldEwmaB) * (pricesB[i] - oldEwmaB) + 
+                     (1 - alpha) * weightedVarB;
+     }
+   
+   if(weightedVarB == 0) return 1.0;
+   return weightedCov / weightedVarB;
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate correlation between assets                             |
+//+------------------------------------------------------------------+
+double CalculateCorrelation(double &pricesA[], double &pricesB[])
+  {
+   int n = ArraySize(pricesA) - 1;
+   double returnsA[], returnsB[];
+   ArrayResize(returnsA, n);
+   ArrayResize(returnsB, n);
+   
+   for(int i = 0; i < n; i++)
+     {
+      returnsA[i] = (pricesA[i] - pricesA[i + 1]) / pricesA[i + 1];
+      returnsB[i] = (pricesB[i] - pricesB[i + 1]) / pricesB[i + 1];
+     }
+   
+   double meanA = MathMean(returnsA);
+   double meanB = MathMean(returnsB);
+   double cov = 0, varA = 0, varB = 0;
+   
+   for(int i = 0; i < n; i++)
+     {
+      double dA = returnsA[i] - meanA;
+      double dB = returnsB[i] - meanB;
+      cov += dA * dB;
+      varA += dA * dA;
+      varB += dB * dB;
+     }
+   
+   if(varA == 0 || varB == 0) return 0;
+   return cov / MathSqrt(varA * varB);
+  }
+
+//+------------------------------------------------------------------+
+//| Augmented Dickey-Fuller Test for cointegration                   |
+//+------------------------------------------------------------------+
+bool TestCointegration()
+  {
+   double closesA[], closesB[];
+   ArraySetAsSeries(closesA, true);
+   ArraySetAsSeries(closesB, true);
+   
+   int testPeriod = MathMin(RegressionPeriod, 100); // Limit for ADF test
+   if(CopyClose(SymbolA, Timeframe, 0, testPeriod, closesA) < testPeriod ||
+      CopyClose(SymbolB, Timeframe, 0, testPeriod, closesB) < testPeriod)
+     {
+      return false;
+     }
+   
+   // Calculate spread series
+   double spread[];
+   ArrayResize(spread, testPeriod);
+   for(int i = 0; i < testPeriod; i++)
+     {
+      spread[i] = closesA[i] - Beta * closesB[i];
+     }
+   
+   // Simplified ADF test (without lag selection)
+   double diffSpread[];
+   ArrayResize(diffSpread, testPeriod - 1);
+   for(int i = 0; i < testPeriod - 1; i++)
+     {
+      diffSpread[i] = spread[i] - spread[i + 1];
+     }
+   
+   // Regression: diff_spread[t] = alpha + beta * spread[t-1] + error
+   double sumY = 0, sumX = 0, sumXY = 0, sumX2 = 0;
+   int n = testPeriod - 1;
+   
+   for(int i = 0; i < n; i++)
+     {
+      sumY += diffSpread[i];
+      sumX += spread[i + 1];
+      sumXY += spread[i + 1] * diffSpread[i];
+      sumX2 += spread[i + 1] * spread[i + 1];
+     }
+   
+   double beta_adf = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+   double alpha = (sumY - beta_adf * sumX) / n;
+   
+   // Calculate standard error
+   double sse = 0;
+   for(int i = 0; i < n; i++)
+     {
+      double residual = diffSpread[i] - (alpha + beta_adf * spread[i + 1]);
+      sse += residual * residual;
+     }
+   
+   double se_beta = MathSqrt(sse / (n - 2) / (sumX2 - sumX * sumX / n));
+   
+   // ADF statistic
+   LastADFStatistic = beta_adf / se_beta;
+   
+   // Check if stationary (negative and below critical value)
+   return (LastADFStatistic < ADFCriticalValue);
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate current Z-Score                                        |
+//+------------------------------------------------------------------+
+double CalculateZScore()
+  {
+   double closesA[], closesB[];
+   ArraySetAsSeries(closesA, true);
+   ArraySetAsSeries(closesB, true);
+   
+   int barsNeeded = LookbackPeriod + 1;
+   if(CopyClose(SymbolA, Timeframe, 0, barsNeeded, closesA) < barsNeeded ||
+      CopyClose(SymbolB, Timeframe, 0, barsNeeded, closesB) < barsNeeded)
+     {
+      return 0;
+     }
+   
+   // Calculate historical spreads
+   double spreads[];
+   ArrayResize(spreads, LookbackPeriod);
+   for(int i = 0; i < LookbackPeriod; i++)
+     {
+      spreads[i] = closesA[i + 1] - Beta * closesB[i + 1];
+     }
+   
+   double mu = MathMean(spreads);
+   double sigma = MathStandardDeviation(spreads);
+   
+   if(sigma == 0) return 0;
+   
+   double currentSpread = closesA[0] - Beta * closesB[0];
+   return (currentSpread - mu) / sigma;
+  }
+
+//+------------------------------------------------------------------+
+//| Check entry signals                                              |
+//+------------------------------------------------------------------+
+void CheckEntrySignals(double zScore)
+  {
+   // Check filters
+   if(!PassesFilters()) return;
+   
+   // Check for entry conditions
+   if(MathAbs(zScore) >= EntryZScore)
+     {
+      double lotsA, lotsB;
+      CalculatePositionSizes(lotsA, lotsB);
+      
+      if(zScore < -EntryZScore)
+        {
+         // Long spread signal
+         OpenLongSpread(lotsA, lotsB, zScore);
+        }
+      else if(zScore > EntryZScore)
+        {
+         // Short spread signal
+         OpenShortSpread(lotsA, lotsB, zScore);
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Manage existing position                                         |
+//+------------------------------------------------------------------+
+void ManagePosition(int direction, double zScore)
+  {
+   bool shouldClose = false;
+   string reason = "";
+   
+   // Mean reversion exit
+   if((direction == 1 && zScore >= ExitZScore) || 
+      (direction == -1 && zScore <= -ExitZScore))
+     {
+      shouldClose = true;
+      reason = "Mean reversion target";
+     }
+   
+   // Stop loss check
+   if(SL_Type == SL_ZScore)
+     {
+      if((direction == 1 && zScore <= -StopZScore) ||
+         (direction == -1 && zScore >= StopZScore))
+        {
+         shouldClose = true;
+         reason = "Z-Score stop loss";
+        }
+     }
+   else if(SL_Type == SL_Percent || SL_Type == SL_ATR)
+     {
+      double currentProfit = CalculatePairProfit();
+      double stopLoss = CalculateStopLossAmount();
+      
+      if(currentProfit <= -stopLoss)
+        {
+         shouldClose = true;
+         reason = "Monetary stop loss";
+        }
+     }
+   
+   // Trailing stop
+   if(UseTrailingStop && !shouldClose)
+     {
+      UpdateTrailingStop(direction, zScore);
+      if(CheckTrailingStop(direction, zScore))
+        {
+         shouldClose = true;
+         reason = "Trailing stop";
+        }
+     }
+   
+   if(shouldClose)
+     {
+      CloseAllPositions(reason);
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate position sizes based on risk                           |
+//+------------------------------------------------------------------+
+void CalculatePositionSizes(double &lotsA, double &lotsB)
+  {
+   double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double riskAmount = (RiskPercent / 100.0) * accountBalance;
+   
+   // Calculate potential adverse move
+   double adverseMove = CalculateAdverseMove();
+   
+   // Calculate lots for Asset A
+   double tickValue = SymbolInfoDouble(SymbolA, SYMBOL_TRADE_TICK_VALUE);
+   double tickSize = SymbolInfoDouble(SymbolA, SYMBOL_TRADE_TICK_SIZE);
+   
+   if(tickValue == 0 || tickSize == 0 || adverseMove == 0)
+     {
+      lotsA = SymbolInfoDouble(SymbolA, SYMBOL_VOLUME_MIN);
+      lotsB = Beta * lotsA;
+      return;
+     }
+   
+   lotsA = riskAmount / (adverseMove / tickSize * tickValue);
+   
+   // Normalize lots
+   lotsA = NormalizeLots(SymbolA, lotsA);
+   lotsB = NormalizeLots(SymbolB, Beta * lotsA);
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate potential adverse move for position sizing             |
+//+------------------------------------------------------------------+
+double CalculateAdverseMove()
+  {
+   if(SL_Type == SL_ZScore)
+     {
+      // Calculate spread standard deviation
+      double spreads[];
+      GetHistoricalSpreads(spreads, LookbackPeriod);
+      double sigma = MathStandardDeviation(spreads);
+      return (StopZScore - EntryZScore) * sigma;
+     }
+   else if(SL_Type == SL_ATR)
+     {
+      double atr[];
+      ArraySetAsSeries(atr, true);
+      if(CopyBuffer(iATR(SymbolA, Timeframe, ATR_Period), 0, 0, 1, atr) > 0)
+         return atr[0] * ATR_Multiplier;
+     }
+   
+   // Default: use percentage of current price
+   double price = SymbolInfoDouble(SymbolA, SYMBOL_BID);
+   return price * (StopLossPercent / 100.0);
+  }
+
+//+------------------------------------------------------------------+
+//| Get historical spreads                                           |
+//+------------------------------------------------------------------+
+void GetHistoricalSpreads(double &spreads[], int period)
+  {
+   double closesA[], closesB[];
+   ArraySetAsSeries(closesA, true);
+   ArraySetAsSeries(closesB, true);
+   
+   if(CopyClose(SymbolA, Timeframe, 1, period, closesA) == period &&
+      CopyClose(SymbolB, Timeframe, 1, period, closesB) == period)
+     {
+      ArrayResize(spreads, period);
+      for(int i = 0; i < period; i++)
+        {
+         spreads[i] = closesA[i] - Beta * closesB[i];
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Normalize lot size                                               |
+//+------------------------------------------------------------------+
+double NormalizeLots(string symbol, double lots)
+  {
+   double lotStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+   double minLot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+   double maxLot = MathMin(SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX), MaxLots);
+   
+   if(lotStep > 0)
+      lots = MathFloor(lots / lotStep) * lotStep;
+   
+   return MathMax(minLot, MathMin(maxLot, lots));
+  }
+
+//+------------------------------------------------------------------+
+//| Check if filters pass                                            |
+//+------------------------------------------------------------------+
+bool PassesFilters()
+  {
+   if(TradeFilter == FILTER_NONE) return true;
+   
+   bool correlationPass = true;
+   bool adfPass = true;
+   
+   if(TradeFilter == FILTER_CORRELATION || TradeFilter == FILTER_BOTH)
+     {
+      correlationPass = (LastCorrelation >= MinCorrelation);
+      if(!correlationPass)
+         Print("Correlation filter failed: ", StringFormat("%.4f", LastCorrelation));
+     }
+   
+   if(TradeFilter == FILTER_ADF || TradeFilter == FILTER_BOTH)
+     {
+      adfPass = IsCointegrated;
+      if(!adfPass)
+         Print("ADF filter failed: ", StringFormat("%.4f", LastADFStatistic));
+     }
+   
+   return (correlationPass && adfPass);
+  }
+
+//+------------------------------------------------------------------+
+//| Check market conditions                                          |
+//+------------------------------------------------------------------+
+bool IsMarketOpen()
+  {
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   
+   // Skip weekends
+   if(dt.day_of_week == 0 || dt.day_of_week == 6)
+      return false;
+   
+   // Check if symbols are tradeable
+   bool tradeableA = (SymbolInfoInteger(SymbolA, SYMBOL_TRADE_MODE) != SYMBOL_TRADE_MODE_DISABLED);
+   bool tradeableB = (SymbolInfoInteger(SymbolB, SYMBOL_TRADE_MODE) != SYMBOL_TRADE_MODE_DISABLED);
+   
+   return (tradeableA && tradeableB);
+  }
+
+//+------------------------------------------------------------------+
+//| Check spread conditions                                          |
+//+------------------------------------------------------------------+
+bool CheckSpreadConditions()
+  {
+   double spreadA = SymbolInfoInteger(SymbolA, SYMBOL_SPREAD);
+   double spreadB = SymbolInfoInteger(SymbolB, SYMBOL_SPREAD);
+   
+   if(spreadA > MaxSpreadPoints || spreadB > MaxSpreadPoints)
+     {
+      Print("Spread too wide: ", SymbolA, "=", spreadA, " ", SymbolB, "=", spreadB);
+      return false;
+     }
+   
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//| Update hedge ratio                                               |
+//+------------------------------------------------------------------+
+void UpdateHedgeRatio()
+  {
+   double oldBeta = Beta;
+   if(CalculateHedgeRatio())
+     {
+      double change = MathAbs((Beta - oldBeta) / oldBeta);
+      if(change > 0.1) // More than 10% change
+        {
+         Print("Hedge ratio updated: ", StringFormat("%.4f", oldBeta), 
+               " -> ", StringFormat("%.4f", Beta));
+        }
+      
+      // Re-test cointegration if needed
+      if(TradeFilter == FILTER_ADF || TradeFilter == FILTER_BOTH)
+        {
+         IsCointegrated = TestCointegration();
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Check for position rebalancing                                   |
+//+------------------------------------------------------------------+
+void CheckRebalancing(int direction)
+  {
+   if(PreviousBeta == 0 || Beta == 0) return;
+   
+   double change = MathAbs((Beta - PreviousBeta) / PreviousBeta);
+   if(change >= RebalanceThreshold)
+     {
+      Print("Rebalancing position due to hedge ratio change: ", 
+            StringFormat("%.2f%%", change * 100));
+      RebalancePositions();
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Rebalance existing positions                                     |
+//+------------------------------------------------------------------+
+void RebalancePositions()
+  {
+   // Get current position volumes
+   double volumeA = 0, volumeB = 0;
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+        {
+         string symbol = PositionGetString(POSITION_SYMBOL);
+         if(symbol == SymbolA)
+            volumeA = PositionGetDouble(POSITION_VOLUME);
+         else if(symbol == SymbolB)
+            volumeB = PositionGetDouble(POSITION_VOLUME);
+        }
+     }
+   
+   // Calculate required adjustment
+   double targetVolumeB = Beta * volumeA;
+   double adjustment = targetVolumeB - volumeB;
+   
+   if(MathAbs(adjustment) > SymbolInfoDouble(SymbolB, SYMBOL_VOLUME_MIN))
+     {
+      // Implement rebalancing logic here
+      Print("Rebalancing: Adjusting ", SymbolB, " by ", StringFormat("%.2f", adjustment), " lots");
+      // Note: Actual implementation would require careful position management
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Update trailing stop                                             |
+//+------------------------------------------------------------------+
+void UpdateTrailingStop(int direction, double zScore)
+  {
+   if(direction == 1) // Long spread
+     {
+      if(zScore >= TrailingStart && (TrailingStopZ == 0 || zScore > TrailingStopZ))
+        {
+         TrailingStopZ = zScore - TrailingStep;
+        }
+     }
+   else if(direction == -1) // Short spread
+     {
+      if(zScore <= -TrailingStart && (TrailingStopZ == 0 || zScore < TrailingStopZ))
+        {
+         TrailingStopZ = zScore + TrailingStep;
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Check trailing stop                                              |
+//+------------------------------------------------------------------+
+bool CheckTrailingStop(int direction, double zScore)
+  {
+   if(TrailingStopZ == 0) return false;
+   
+   if(direction == 1 && zScore <= TrailingStopZ)
+      return true;
+   else if(direction == -1 && zScore >= TrailingStopZ)
+      return true;
+   
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate stop loss amount                                       |
+//+------------------------------------------------------------------+
+double CalculateStopLossAmount()
+  {
+   double stopAmount = 0;
+   
+   if(SL_Type == SL_Percent)
+     {
+      stopAmount = AccountInfoDouble(ACCOUNT_BALANCE) * (StopLossPercent / 100.0);
+     }
+   else if(SL_Type == SL_ATR)
+     {
+      double atr[];
+      ArraySetAsSeries(atr, true);
+      if(CopyBuffer(iATR(SymbolA, Timeframe, ATR_Period), 0, 0, 1, atr) > 0)
+        {
+         double tickValue = SymbolInfoDouble(SymbolA, SYMBOL_TRADE_TICK_VALUE);
+         double tickSize = SymbolInfoDouble(SymbolA, SYMBOL_TRADE_TICK_SIZE);
+         double lotsA = GetPositionVolume(SymbolA);
+         
+         if(tickSize > 0)
+            stopAmount = (atr[0] * ATR_Multiplier / tickSize) * tickValue * lotsA;
+        }
+     }
+   
+   return stopAmount;
+  }
+
+//+------------------------------------------------------------------+
+//| Get position volume for symbol                                   |
+//+------------------------------------------------------------------+
+double GetPositionVolume(string symbol)
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) && 
+         PositionGetInteger(POSITION_MAGIC) == MagicNumber &&
+         PositionGetString(POSITION_SYMBOL) == symbol)
+        {
+         return PositionGetDouble(POSITION_VOLUME);
+        }
+     }
+   return 0;
+  }
+
+//+------------------------------------------------------------------+
+//| Update performance metrics                                       |
+//+------------------------------------------------------------------+
+void UpdatePerformanceMetrics()
+  {
+   double currentEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+   
+   // Update peak equity
+   if(currentEquity > PeakEquity)
+      PeakEquity = currentEquity;
+   
+   // Calculate drawdown
+   double currentDD = (PeakEquity - currentEquity) / PeakEquity * 100.0;
+   if(currentDD > MaxDrawdown)
+      MaxDrawdown = currentDD;
+  }
+
+//+------------------------------------------------------------------+
+//| Display status information                                       |
+//+------------------------------------------------------------------+
+void DisplayStatus(double zScore)
+  {
+   static datetime lastDisplayTime = 0;
+   datetime currentTime = TimeCurrent();
+   
+   // Display every 5 minutes
+   if(currentTime - lastDisplayTime < 300) return;
+   lastDisplayTime = currentTime;
+   
+   string status = "\n=== REHOBOAM Status ===";
+   status += "\nPair: " + SymbolA + "/" + SymbolB;
+   status += "\nHedge Ratio: " + StringFormat("%.4f", Beta);
+   status += "\nZ-Score: " + StringFormat("%.2f", zScore);
+   status += "\nCorrelation: " + StringFormat("%.4f", LastCorrelation);
+   
+   if(TradeFilter == FILTER_ADF || TradeFilter == FILTER_BOTH)
+     {
+      status += "\nCointegrated: " + (IsCointegrated ? "Yes" : "No");
+      status += "\nADF Stat: " + StringFormat("%.4f", LastADFStatistic);
+     }
+   
+   int direction = GetPositionDirection();
+   if(direction != 0)
+     {
+      status += "\nPosition: " + (direction == 1 ? "Long Spread" : "Short Spread");
+      status += "\nP&L: " + StringFormat("%.2f", CalculatePairProfit());
+     }
+   else
+     {
+      status += "\nPosition: None";
+     }
+   
+   if(TotalTrades > 0)
+     {
+      double winRate = (double)WinningTrades / TotalTrades * 100.0;
+      status += "\n\nPerformance:";
+      status += "\nTrades: " + IntegerToString(TotalTrades);
+      status += "\nWin Rate: " + StringFormat("%.1f%%", winRate);
+      status += "\nTotal P&L: " + StringFormat("%.2f", TotalProfit);
+      status += "\nMax DD: " + StringFormat("%.2f%%", MaxDrawdown);
+     }
+   
+   Comment(status);
+  }
+
+//+------------------------------------------------------------------+
+//| Check if new bar opened                                          |
+//+------------------------------------------------------------------+
+bool IsNewBar()
+  {
+   datetime currentBarTime = iTime(SymbolA, Timeframe, 0);
+   if(currentBarTime > LastBarTime)
+     {
+      LastBarTime = currentBarTime;
+      return true;
+     }
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| Get current position direction                                   |
+//+------------------------------------------------------------------+
+int GetPositionDirection()
+  {
+   bool hasPosA = false, hasPosB = false;
+   long typeA = -1, typeB = -1;
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+        {
+         string posSymbol = PositionGetString(POSITION_SYMBOL);
+         if(posSymbol == SymbolA)
+           {
+            hasPosA = true;
+            typeA = PositionGetInteger(POSITION_TYPE);
+           }
+         else if(posSymbol == SymbolB)
+           {
+            hasPosB = true;
+            typeB = PositionGetInteger(POSITION_TYPE);
+           }
+        }
+     }
+   
+   if(!hasPosA || !hasPosB) return 0;
+   
+   if(typeA == POSITION_TYPE_BUY && typeB == POSITION_TYPE_SELL) return 1;
+   if(typeA == POSITION_TYPE_SELL && typeB == POSITION_TYPE_BUY) return -1;
+   
+   return 0;
+  }
+
+//+------------------------------------------------------------------+
+//| Calculate pair profit                                            |
+//+------------------------------------------------------------------+
+double CalculatePairProfit()
+  {
+   double profit = 0.0;
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+        {
+         string symbol = PositionGetString(POSITION_SYMBOL);
+         if(symbol == SymbolA || symbol == SymbolB)
+           {
+            profit += PositionGetDouble(POSITION_PROFIT);
+            profit += PositionGetDouble(POSITION_SWAP);
+           }
+        }
+     }
+   
+   return profit;
+  }
+
+//+------------------------------------------------------------------+
+//| Open long spread                                                 |
+//+------------------------------------------------------------------+
+void OpenLongSpread(double lotsA, double lotsB, double zScore)
+  {
+   if(lotsA <= 0 || lotsB <= 0)
+     {
+      Print("Invalid lot sizes for long spread");
+      return;
+     }
+   
+   // Reset trailing stop
+   TrailingStopZ = 0;
+   
+   // Place orders with retry logic
+   bool successA = false, successB = false;
+   int retries = 3;
+   
+   while(retries > 0 && !successA)
+     {
+      Trade.SetDeviationInPoints(20);
+      if(Trade.Buy(lotsA, SymbolA, 0, 0, 0, "Long Spread A"))
+        {
+         successA = true;
+         Print("Opened BUY ", SymbolA, " ", StringFormat("%.2f", lotsA), " lots");
+        }
+      else
+        {
+         Print("Failed to BUY ", SymbolA, ": ", GetLastError());
+         retries--;
+         Sleep(1000);
+        }
+     }
+   
+   if(successA)
+     {
+      retries = 3;
+      while(retries > 0 && !successB)
+        {
+         if(Trade.Sell(lotsB, SymbolB, 0, 0, 0, "Long Spread B"))
+           {
+            successB = true;
+            Print("Opened SELL ", SymbolB, " ", StringFormat("%.2f", lotsB), " lots");
+           }
+         else
+           {
+            Print("Failed to SELL ", SymbolB, ": ", GetLastError());
+            retries--;
+            Sleep(1000);
+           }
+        }
+      
+      // If only one leg filled, close it
+      if(!successB)
+        {
+         CloseSymbolPositions(SymbolA, "Failed to open hedge");
+        }
+      else
+        {
+         EntryZ = zScore;
+         EntryEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+         TotalTrades++;
+         Print("Long spread opened at Z-Score: ", StringFormat("%.2f", zScore));
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Open short spread                                                |
+//+------------------------------------------------------------------+
+void OpenShortSpread(double lotsA, double lotsB, double zScore)
+  {
+   if(lotsA <= 0 || lotsB <= 0)
+     {
+      Print("Invalid lot sizes for short spread");
+      return;
+     }
+   
+   // Reset trailing stop
+   TrailingStopZ = 0;
+   
+   // Place orders with retry logic
+   bool successA = false, successB = false;
+   int retries = 3;
+   
+   while(retries > 0 && !successA)
+     {
+      Trade.SetDeviationInPoints(20);
+      if(Trade.Sell(lotsA, SymbolA, 0, 0, 0, "Short Spread A"))
+        {
+         successA = true;
+         Print("Opened SELL ", SymbolA, " ", StringFormat("%.2f", lotsA), " lots");
+        }
+      else
+        {
+         Print("Failed to SELL ", SymbolA, ": ", GetLastError());
+         retries--;
+         Sleep(1000);
+        }
+     }
+   
+   if(successA)
+     {
+      retries = 3;
+      while(retries > 0 && !successB)
+        {
+         if(Trade.Buy(lotsB, SymbolB, 0, 0, 0, "Short Spread B"))
+           {
+            successB = true;
+            Print("Opened BUY ", SymbolB, " ", StringFormat("%.2f", lotsB), " lots");
+           }
+         else
+           {
+            Print("Failed to BUY ", SymbolB, ": ", GetLastError());
+            retries--;
+            Sleep(1000);
+           }
+        }
+      
+      // If only one leg filled, close it
+      if(!successB)
+        {
+         CloseSymbolPositions(SymbolA, "Failed to open hedge");
+        }
+      else
+        {
+         EntryZ = zScore;
+         EntryEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+         TotalTrades++;
+         Print("Short spread opened at Z-Score: ", StringFormat("%.2f", zScore));
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Close positions for specific symbol                              |
+//+------------------------------------------------------------------+
+void CloseSymbolPositions(string symbol, string reason)
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) && 
+         PositionGetInteger(POSITION_MAGIC) == MagicNumber &&
+         PositionGetString(POSITION_SYMBOL) == symbol)
+        {
+         if(!Trade.PositionClose(PositionGetInteger(POSITION_TICKET)))
+           {
+            Print("Failed to close ", symbol, ": ", GetLastError());
+           }
+         else
+           {
+            Print("Closed ", symbol, " - Reason: ", reason);
+           }
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Close all positions                                              |
+//+------------------------------------------------------------------+
+void CloseAllPositions(string reason)
+  {
+   double profit = CalculatePairProfit();
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+        {
+         string symbol = PositionGetString(POSITION_SYMBOL);
+         if(symbol == SymbolA || symbol == SymbolB)
+           {
+            if(!Trade.PositionClose(PositionGetInteger(POSITION_TICKET)))
+              {
+               Print("Error closing ", symbol, ": ", GetLastError());
+              }
+           }
+        }
+     }
+   
+   // Update statistics
+   TotalProfit += profit;
+   if(profit > 0) WinningTrades++;
+   
+   Print("Positions closed - Reason: ", reason, " P&L: ", StringFormat("%.2f", profit));
+   
+   // Reset entry values
+   EntryZ = 0;
+   EntryEquity = 0;
+   TrailingStopZ = 0;
+  }
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+   // Clean up
+   Comment("");
+   
+   // Print final statistics
+   if(TotalTrades > 0)
+     {
+      double winRate = (double)WinningTrades / TotalTrades * 100.0;
+      Print("\n=== Final Statistics ===");
+      Print("Total Trades: ", TotalTrades);
+      Print("Win Rate: ", StringFormat("%.1f%%", winRate));
+      Print("Total P&L: ", StringFormat("%.2f", TotalProfit));
+      Print("Max Drawdown: ", StringFormat("%.2f%%", MaxDrawdown));
+     }
+  }
+
+//+------------------------------------------------------------------+
