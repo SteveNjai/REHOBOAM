@@ -1,9 +1,13 @@
 INSTRUCTIONS
 ----------------------
+= THIS EA IS BEST SUYITED FOR GBPUSD AND EURUSD PAIR AND M1 TIMEFRAME THUS ALL OPTIMIZATIONS AND FILES REFERENCE THIS.
+
 1.  DO NOT DELETE ANYTHING IN THE MAIN FOLDER OF REHOBOAM TOOLS. 
-2. USE 'run_rehoboam_tools.bat' to run the scripts such as opimizator.py, cointegration_screen.py and create_price_history.py
-3. OPTIMIZATOR.py: this file takes the optimization files (in .csv comma delimited format) in the optimization files folder and does analysis to find the best parameters for the REHOBOAM bot.
-4. CREATE_PRICE_HISTORY.py: this script takes the price history (in .csv file format) located in the history folder and concatenates the data into one csv file called 'price_history.csv
-5. COINTEGRATION.py: this script takes the data in the price_history.csv file and runs cointegration analysis on the data to come up with the best pair to trade.
-6. HISTORY: this folder is where you will place the symbol history data i.e. the OHLC data as exported from mt5. just export the bars from mt5 and the script 'create_price_history.py' will handle the rest.
-7. OPTIMIZATION FILES: this folder is where you will export the optimization data from the mt5 strategy tester optimization results screen. you will need to open the xml file and save it as .csv (comma delimited) for it to be analysed by optimizator.py script
+2. USE 'run_rehoboam_tools.bat' to run the scripts such as zscore_predictor.
+3. zscore_predictor.py: takes price history data of the pair being traded and strored in the history folder and calculates trhe spread and predcits the spread.
+
+HISTORY FOLDER
+--------------
+1. this folder is for storing the price history for the two symbols to be traded
+2. ensure you save the price history as GBPUSD_M1_price_history.csv and EURUSD_M1_price_history.csv. if these names changes, modify the zscore_pedictor.py
+3. this folder should only have 2 price histroy for the two symbols being traded and should be in the same timeframe.
