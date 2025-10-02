@@ -45,7 +45,28 @@ REHOBOAM is a MetaTrader 5 Expert Advisor (EA) designed for pairs trading on use
 
 ## Input Parameters
 
-ParameterTypeDefaultDescriptionSymbolAstring""First asset (e.g., XAUUSD, AUDUSD). Must be specified.SymbolBstring""Second asset (e.g., XAGUSD, NZDUSD). Must be specified.TimeframeENUM\_TIMEFRAMESPERIOD\_D1Chart timeframe (Daily recommended).LookbackPeriodint20Bars for calculating spread mean and std dev.RegressionPeriodint252Bars for hedge ratio (Beta) calculation.EntryZScoredouble1.8Z-Score threshold for trade entry (StopZScoredouble4.0Z-Score threshold for stop-loss (if SL\_Type = SL\_ZScore).RiskPercentdouble1.0% of account balance to risk per trade (if SL\_Type = SL\_ZScore).MinCorrelationdouble0.5Minimum correlation for pair to trade.BypassCorrelationCheckboolfalseIf true, skips correlation check (use cautiously).MagicNumberlong12345Unique identifier for EA's positions.RiskRewardRatiodouble2.0Take-profit as multiple of stop-loss.SL\_TypeStopLossTypeSL\_ZScoreStop-loss type: 0 (Z-Score) or 1 (Percentage).StopLossPercentdouble0.8% of entry equity for stop-loss (if SL\_Type = SL\_Percent).
+| Parameter               | Type        | Default | Description                                                                 |
+|-------------------------|-------------|---------|-----------------------------------------------------------------------------|
+| `SymbolA`               | string      | ""      | First asset (e.g., XAUUSD, AUDUSD). Must be specified.                      |
+| `SymbolB`               | string      | ""      | Second asset (e.g., XAGUSD, NZDUSD). Must be specified.                     |
+| `Timeframe`             | ENUM_TIMEFRAMES | PERIOD_D1 | Chart timeframe (Daily recommended).                              |
+| `LookbackPeriod`        | int         | 20      | Bars for calculating spread mean and std dev.                        |
+| `RegressionPeriod`      | int         | 252     | Bars for hedge ratio (Beta) calculation.                             |
+| `EntryZScore`           | double      | 2.0     | Z-Score threshold for trade entry (|Z| ≥ this value).                |
+| `StopZScore`            | double      | 4.0     | Z-Score threshold for stop-loss (if `SL_Type = SL_ZScore`).         |
+| `RiskPercent`           | double      | 1.0     | % of account balance to risk per trade (if `SL_Type = SL_ZScore`).  |
+| `MinCorrelation`        | double      | 0.8     | Minimum correlation for pair to trade.                               |
+| `BypassCorrelationCheck`| bool        | false   | If true, skips correlation check (use cautiously).                   |
+| `MagicNumber`           | long        | 12345   | Unique identifier for EA's positions.                                |
+| `RiskRewardRatio`       | double      | 2.0     | Take-profit as multiple of stop-loss.                                |
+| `SL_Type`               | StopLossType| SL_ZScore | Stop-loss type: 0 (Z-Score) or 1 (Percentage).                    |
+| `StopLossPercent`       | double      | 2.0     | % of entry equity for stop-loss (if `SL_Type = SL_Percent`).        |
+| `ExpectedAdverseSpread` | double      | 0.01    | Expected spread move for sizing (if `SL_Type = SL_Percent`).        |
+
+## Strategy Logic
+1. **Initialization**:
+   - Validates symbols and data availability.
+   - Calculates Beta (hedge ratio) as Cov(A,B)/Var(B) over `RegressionPeriod`.
 
 ## Strategy Logic
 
