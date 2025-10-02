@@ -1,0 +1,6 @@
+Name     : STEVE NJAI
+Type     : Forex Hedged USD
+Server   : MetaQuotes-Demo
+Login    : 5040745538
+Password : LfJdNv_3
+Investor : JmZ*Rz0j

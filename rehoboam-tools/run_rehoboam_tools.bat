@@ -12,9 +12,11 @@ echo 1. Run create_price_history.py (Generate price_history.csv)
 echo 2. Run cointegration_screen.py (Screen cointegrated pairs)
 echo 3. Run Optimizator.py (find best parameters from the optimization files)
 echo 4. Run spread_predictor.py (preedict the spread using past history from the price_history.csv)
-echo 5. Exit
+echo 5. Solomon Optimzier (uses machine learning to analyze the optimziation files and identify the best parameters)
+echo 6. Strategy_auto_tester (automate strategy testing process on mt5)
+echo 7. Exit
 echo.
-set /p choice=Enter your choice (1-5):
+set /p choice=Enter your choice (1-7):
 
 if "%choice%"=="1" (
     echo Running create_price_history.py...
@@ -45,10 +47,24 @@ if "%choice%"=="1" (
     pause
     goto menu
 ) else if "%choice%"=="5" (
+    echo Running Solomon Optimizer.py...
+    %PYTHON% "%SCRIPT_DIR%solomon_optimizer.py"
+    echo.
+    echo Script completed. Check terminal for best parameters. Press any key to return to menu.
+    pause
+    goto menu
+) else if "%choice%"=="5" (
+    echo Running Strategy_auto_tester.py...
+    %PYTHON% "%SCRIPT_DIR%strategy_auto_tester.py"
+    echo.
+    echo Script completed. Check terminal for best parameters. Press any key to return to menu.
+    pause
+    goto menu
+) else if "%choice%"=="7" (
     echo Exiting...
     exit /b
 ) else (
-    echo Invalid choice. Please enter 1, 2, 3, 4 or 5.
+    echo Invalid choice. Please enter 1, 2, 3, 4, 5, 6 or 7.
     echo.
     pause
     goto menu
