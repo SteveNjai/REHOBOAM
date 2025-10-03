@@ -1,0 +1,11 @@
+SymbolA=GBPUSD
+SymbolB=EURUSD
+LookbackPeriod=20
+RegressionPeriod=252
+EntryZScore=2
+StopZScore=0.5
+RiskPercent=1
+MinCorrelation=0.2
+RiskRewardRatio=2
+StopLossPercent=2.5
+MaxLots=5

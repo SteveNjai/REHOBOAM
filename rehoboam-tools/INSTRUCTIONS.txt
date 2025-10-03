@@ -1,13 +1,14 @@
 INSTRUCTIONS
 ----------------------
-= THIS EA IS BEST SUYITED FOR GBPUSD AND EURUSD PAIR AND M1 TIMEFRAME THUS ALL OPTIMIZATIONS AND FILES REFERENCE THIS.
+= THIS EA IS BEST SUITED FOR GBPUSD AND EURUSD PAIR AND M1 TIMEFRAME THUS ALL OPTIMIZATIONS AND FILES REFERENCE THIS.
 
-1.  DO NOT DELETE ANYTHING IN THE MAIN FOLDER OF REHOBOAM TOOLS. 
-2. USE 'run_rehoboam_tools.bat' to run the scripts such as zscore_predictor.
-3. zscore_predictor.py: takes price history data of the pair being traded and strored in the history folder and calculates trhe spread and predcits the spread.
+1. DO NOT DELETE ANYTHING IN THE MAIN FOLDER OF REHOBOAM TOOLS.
+2. USE 'run_rehoboam_tools.bat' to run the scripts such as zscore_predictor or rehoboam_optimizer.
+3. zscore_predictor.py: takes price history data of the pair being traded and strored in the history folder and calculates the spread and predicts the spread.
+4. rehoboam_optimizer is a more robust backtesting alternative to mt5 backtester as it aggregates the results and gets the best parameters
 
-HISTORY FOLDER
+zscore_predictor: HISTORY FOLDER
 --------------
 1. this folder is for storing the price history for the two symbols to be traded
 2. ensure you save the price history as GBPUSD_M1_price_history.csv and EURUSD_M1_price_history.csv. if these names changes, modify the zscore_pedictor.py
-3. this folder should only have 2 price histroy for the two symbols being traded and should be in the same timeframe.
+3. this folder should only have 2 price history for the two symbols being traded and should be in the same timeframe.
