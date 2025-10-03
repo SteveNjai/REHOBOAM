@@ -12,3 +12,12 @@ zscore_predictor: HISTORY FOLDER
 1. this folder is for storing the price history for the two symbols to be traded
 2. ensure you save the price history as GBPUSD_M1_price_history.csv and EURUSD_M1_price_history.csv. if these names changes, modify the zscore_pedictor.py
 3. this folder should only have 2 price history for the two symbols being traded and should be in the same timeframe.
+
+HOW TO INSTALL PACKAGES
+-----------------
+1. open command prompt and navigate to rehoboam-tools folder
+2. run ~Scripts\activate
+3. the above command will activate the python virtual environment
+4. installpackages using this command:  ~pip install <package name>
+5. to install packages listed under requirements.txt, run:
+		~pip install -r rehoboam_optimizer\requirements.txt
