@@ -10,7 +10,7 @@ set SCRIPT_DIR=%PROJECT_DIR%
 cls
 echo REHOBOAM Script Runner
 echo =====================
-echo 1. Run zscore_predictor.py (predict the zscore from history data in zscore_predictor history folder)
+echo 1. Run Zscore_analyzer (show zscore statistics)
 echo 2. Run fetch_mt5.py (fetch history for rehoboam_optimizer tool)
 echo 3. Run run_optimize.py (optimize on history data for rehoboam_optimizer)
 echo 4. Exit
@@ -18,9 +18,9 @@ echo.
 set /p choice=Enter your choice (1-4):
 
 if "%choice%"=="1" (
-    echo Running zscore_predictor.py...
-    pushd "%SCRIPT_DIR%\zscore_predictor"
-    %PYTHON% zscore_predictor.py
+    echo Running zscore_analyzer.py...
+    pushd "%SCRIPT_DIR%\zscore_analyzer"
+    %PYTHON% zscore_analyzer.py
     popd
     echo.
     echo Script completed. Press any key to return to menu.
