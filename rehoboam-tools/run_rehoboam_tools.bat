@@ -13,7 +13,8 @@ echo =====================
 echo 1. Run Zscore_analyzer (show zscore statistics)
 echo 2. Run fetch_mt5.py (fetch history for rehoboam_optimizer tool)
 echo 3. Run run_optimize.py (optimize on history data for rehoboam_optimizer)
-echo 4. Exit
+echo 4. Run Oracle-Spread (this tool simulates the PnL for each zscore at that time and find the best zscore for that period)
+echo 5. Exit
 echo.
 set /p choice=Enter your choice (1-4):
 
@@ -39,6 +40,15 @@ if "%choice%"=="1" (
     echo Running run_optimize.py...
     pushd "%SCRIPT_DIR%\rehoboam_optimizer"
     %PYTHON% run_optimize.py
+    popd
+    echo.
+    echo Script completed. Press any key to return to menu.
+    pause >nul
+    goto menu
+) else if "%choice%"=="4" (
+    echo Running Oracle-Spread.py...
+    pushd "%SCRIPT_DIR%\oracle-spread"
+    %PYTHON% oracle-spread.py
     popd
     echo.
     echo Script completed. Press any key to return to menu.

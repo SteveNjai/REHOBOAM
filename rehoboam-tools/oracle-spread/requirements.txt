@@ -1,0 +1,8 @@
+numpy>=1.26
+pandas>=2.2
+MetaTrader5>=1.0.45
+matplotlib
+statsmodels
+socket
+scikit-learn
+scipy

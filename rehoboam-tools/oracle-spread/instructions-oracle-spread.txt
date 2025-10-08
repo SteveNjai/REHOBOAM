@@ -1,0 +1,236 @@
+# INSTRUCTION.TXT for oracle_spread.py and REHOBOAM-v2 Integration
+
+## Overview
+`oracle_spread.py` is a Python script that analyzes pairs trading opportunities for GBPUSD/EURUSD using a histogram-based Z-Score simulation. It calculates the optimal entry Z-Score for a mean-reversion strategy, outputs performance metrics (Sharpe, PNL, trades/path), and generates visualizations. It integrates with REHOBOAM-v2 (an MT5 Expert Advisor) by producing `optimal_zscore.json`, which REHOBOAM-v2 reads to execute trades.
+
+This script runs every minute, processing 2-hour tick data (resampled to 2s), simulating 150 steps (~5 min), and outputting:
+- Historical spread and Z-Score stats (Mean, Std, Skew, Kurtosis).
+- Portfolio metrics for Z-Scores from 0 to 8.4 (step 0.2).
+- Plots: `portfolio_effect.png` (Sharpe vs. Z-Score), `zscore_histogram.png` (historical vs. simulated Z-Scores), `equity_curves.png` (average equity curves per Z-Score).
+- `optimal_zscore.json` saved to both the script’s directory and a user-specified MQL5 directory for REHOBOAM-v2.
+
+## Prerequisites
+1. **Software**:
+   - MetaTrader 5 (MT5) installed and running with a demo/real account.
+   - Python 3.8+ installed.
+   - Git Bash or Command Prompt for running commands.
+   - MT5 terminal configured with GBPUSD and EURUSD symbols.
+
+2. **Python Packages**:
+   Install required libraries in your Python environment:
+   ```bash
+   pip install MetaTrader5 pandas numpy matplotlib statsmodels scikit-learn scipy
+   ```
+
+3. **Files**:
+   - `oracle_spread.py`: The main script (provided).
+   - `REHOBOAM-v2.mq5`: The MT5 Expert Advisor (assumed available in your project).
+
+## Setup
+1. **Directory Structure**:
+   - Place files in `D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools`:
+     ```
+     D:\PROJECTS\BOTS\REHOBOAM\
+     ├── rehoboam-tools\
+     │   ├── oracle-spread\
+     │   │   ├── oracle_spread.py
+     │   │   └── optimal_zscore.json (generated)
+     │   ├── Scripts\
+     │   │   └── python.exe (virtual environment)
+     ├── MQL5\
+     │   ├── Experts\
+     │   │   └── REHOBOAM-v2.mq5
+     │   ├── Files\
+     │   │   └── optimal_zscore.json (generated, optional)
+     D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files\
+     │   └── optimal_zscore.json (generated)
+     ```
+   - Create the `oracle-spread` folder if it doesn’t exist:
+     ```bash
+     mkdir D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\oracle-spread
+     ```
+
+2. **Virtual Environment**:
+   - If not already set up, create and activate a virtual environment:
+     ```bash
+     python -m venv D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools
+     D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\Scripts\activate
+     ```
+   - Install dependencies in the activated environment:
+     ```bash
+     pip install MetaTrader5 pandas numpy matplotlib statsmodels scikit-learn scipy
+     ```
+
+3. **MT5 Configuration**:
+   - Open MT5, log in to your account, and ensure GBPUSD and EURUSD are in the Market Watch.
+   - Place `REHOBOAM-v2.mq5` in `D:\PROJECTS\BOTS\REHOBOAM\MQL5\Experts`.
+   - Compile `REHOBOAM-v2.mq5` in MT5’s MetaEditor (File > Open > select file > Compile).
+   - Verify the MT5 terminal’s `MQL5\Files` directory (e.g., `D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files`) is accessible for writing.
+
+4. **JSON File**:
+   - The script generates `optimal_zscore.json` in:
+     - `D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\oracle-spread` (local copy).
+     - `D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files` (for REHOBOAM-v2).
+   - Update `MQL5_DIR` in `oracle_spread.py` if your MT5 terminal directory differs:
+     ```python
+     MQL5_DIR = r"Your\MT5\Terminal\Path\MQL5\Files"
+     ```
+
+## Running the Script
+1. **Activate Environment**:
+   ```bash
+   D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\Scripts\activate
+   ```
+
+2. **Run the Script**:
+   - Execute `oracle_spread.py`:
+     ```bash
+     D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\Scripts\python.exe D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\oracle-spread\oracle_spread.py
+     ```
+   - The script runs every minute, fetching tick data, simulating trades, and updating `optimal_zscore.json` in both directories.
+
+3. **Expected Behavior**:
+   - Connects to MT5, processes GBPUSD/EURUSD data, and simulates trades using historical Z-Score distribution.
+   - Outputs console messages (spread stats, Z-Score stats, portfolio metrics).
+   - Saves `optimal_zscore.json` to both `oracle-spread` and `MQL5\Files` directories.
+   - Generates plots in the `oracle-spread` directory.
+   - Runs continuously until interrupted (Ctrl+C).
+
+## Integrating with REHOBOAM-v2
+1. **Configure REHOBOAM-v2**:
+   - Open `REHOBOAM-v2.mq5` in MetaEditor.
+   - Set input parameters to match `oracle_spread.py`:
+     ```
+     SymbolA = "GBPUSD"
+     SymbolB = "EURUSD"
+     MinCorrelation = 0.2
+     StopZScore = 2.0
+     LookbackPeriod = 600
+     BypassCointCheck = true
+     ```
+   - Ensure `REHOBOAM-v2.mq5` reads `optimal_zscore.json` from `D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files`.
+
+2. **Attach to MT5 Chart**:
+   - In MT5, open a GBPUSD chart (any timeframe, e.g., M1).
+   - Drag `REHOBOAM-v2` from the Navigator to the chart or double-click it.
+   - In the EA settings, enable “Allow Algo Trading” and confirm inputs.
+   - Click OK to activate the EA.
+
+3. **Operation**:
+   - Run `oracle_spread.py` first to generate `optimal_zscore.json`.
+   - REHOBOAM-v2 reads the JSON file from `D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files` and uses the optimal Z-Score for trading.
+   - Monitor MT5’s Experts tab for trade logs and ensure the EA is active (smiling face in chart corner).
+
+## Outputs
+1. **Console Output**:
+   - Connection status: `MT5 initialized`.
+   - Data info: e.g., `Tick data: 3600 2s bars for GBPUSD`.
+   - Stats:
+     ```
+     Historical Spread Stats: Mean=X.XXXXXX, Std=X.XXXXXX, Skew=X.XXXX, Kurtosis=X.XXXX
+     Historical Z-Score Stats: Mean≈0, Std≈1, Skew≈-0.64, Kurtosis≈-0.82
+     ```
+   - Portfolio metrics:
+     ```
+     Entry Z-Score X.X: N trades, Avg Trades/Path: X.XX, Sharpe: X.XXXX, Mean PNL: X.XX USD
+     ```
+   - JSON saving:
+     ```
+     Saved optimal_zscore.json to optimal_zscore.json
+     Saved optimal_zscore.json to D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files\optimal_zscore.json
+     ```
+   - Optimal Z-Score:
+     ```
+     Optimal Entry Z-Score: X.X, Sharpe: X.XXXX, Mean PNL: X.XX USD, Avg Trades/Path: X.XX
+     ```
+
+2. **Files**:
+   - `portfolio_effect.png`: Sharpe ratio vs. entry Z-Score.
+   - `zscore_histogram.png`: Historical vs. simulated Z-Score distributions (should match closely).
+   - `equity_curves.png`: Average equity curves for each Z-Score with trades, starting at $0.
+   - `optimal_zscore.json`: Contains `{"optimal_z": X.X}` in:
+     - `D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\oracle-spread`.
+     - `D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files`.
+   - Plot location: `D:\PROJECTS\BOTS\REHOBOAM\rehoboam-tools\oracle-spread`.
+
+## Troubleshooting
+1. **MT5 Initialization Failed**:
+   - Ensure MT5 is running and logged into a demo/real account.
+   - Verify GBPUSD/EURUSD are in Market Watch.
+   - Check MetaTrader5 package: `pip show MetaTrader5`.
+
+2. **Insufficient Data**:
+   - Error: `Insufficient tick data` or `Insufficient M1 data`.
+   - Solution: Ensure MT5 has historical data for GBPUSD/EURUSD. In MT5, go to History Center, download M1 data, or extend the lookback period.
+
+3. **JSON Save Errors**:
+   - Error: `Error saving optimal_zscore.json to D:\MetaQuotes\...`.
+   - Solution: Verify `MQL5_DIR` path is correct and MT5 has write permissions. Run MT5 as administrator if needed.
+
+4. **Unrealistic PNL** (e.g., >2 USD for 0.1 lot):
+   - Edit `oracle_spread.py`, set `LOT_SIZE=0.01`:
+     ```python
+     LOT_SIZE = 0.01
+     ```
+   - Try AUDUSD/NZDUSD for better cointegration:
+     ```python
+     SYMBOL_A = "AUDUSD"
+     SYMBOL_B = "NZDUSD"
+     ```
+
+5. **Script Hanging**:
+   - Reduce `N_PATHS` to 1000:
+     ```python
+     N_PATHS = 1000
+     ```
+   - Ensure sufficient CPU/memory.
+
+6. **Flat Equity Curves**:
+   - Observation: Equity curves in `equity_curves.png` appear as straight lines.
+   - Cause: Histogram-based Z-Score simulation lacks temporal correlation, causing trades to close early. Averaging across paths smooths curves.
+   - Solution: If dynamic curves are needed, consider reintroducing OU simulation or adding autocorrelation (requires code change).
+
+7. **REHOBOAM-v2 Not Trading**:
+   - Verify `optimal_zscore.json` exists in `D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files`.
+   - Check EA logs in MT5’s Experts tab.
+   - Ensure “Algo Trading” is enabled in MT5 (Tools > Options > Expert Advisors).
+
+## Customization
+1. **Change Symbols**:
+   - Edit `oracle_spread.py`:
+     ```python
+     SYMBOL_A = "AUDUSD"
+     SYMBOL_B = "NZDUSD"
+     ```
+   - Update `REHOBOAM-v2.mq5` accordingly.
+
+2. **Change MQL5 Directory**:
+   - Edit `oracle_spread.py`:
+     ```python
+     MQL5_DIR = r"Your\MT5\Terminal\Path\MQL5\Files"
+     ```
+
+3. **Longer Simulation**:
+   - For backtesting (e.g., 2-month simulation):
+     ```python
+     N_PATHS = 100
+     N_STEPS = 84000  # ~2 months at 2s
+     LOT_SIZE = 0.01
+     ```
+
+4. **Adjust Z-Score Range**:
+   - To reduce cluttered equity curves:
+     ```python
+     entry_zscores = np.arange(0, 5.0, 0.2)
+     ```
+
+5. **Add Temporal Correlation**:
+   - If equity curves need more variability, revert to OU simulation or add AR(1) correlation (requires code modification).
+
+## Notes
+- **PNL Expectation**: Mean PNL should be ~0.5–2 USD per path for `LOT_SIZE=0.1`. Adjust `LOT_SIZE` if higher.
+- **Equity Curves**: Curves may appear flat due to early trade closures in histogram-based simulation. This is expected unless temporal correlation is added.
+- **REHOBOAM-v2**: Ensure the EA reads `optimal_zscore.json` from the MT5 `MQL5\Files` directory and matches script settings (e.g., `StopZScore=2.0`).
+- **Testing**: Use MT5 Strategy Tester (“Every tick” mode, M1 data) to backtest REHOBOAM-v2 with the generated Z-Score.
+
+For issues, share console output, `equity_curves.png`, `zscore_histogram.png`, and MT5 Experts tab logs. Contact your developer for REHOBOAM-v2.mq5 source if needed.
