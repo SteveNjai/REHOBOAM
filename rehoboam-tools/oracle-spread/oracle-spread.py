@@ -51,8 +51,8 @@ LOOKBACK_PERIOD = 5720  # 2s bars
 REGRESSION_PERIOD = 7020  # 2s bars
 STOP_ZSCORE = 4.8
 RISK_REWARD_RATIO = 2.0
-N_PATHS = 100
-N_STEPS = 1000  # ~5 min at 2s
+N_PATHS = 200
+N_STEPS = 3600  # ~2hrs at 2s bars
 MIN_CORRELATION = 0.2
 MIN_COINT_PVALUE = 0.05
 BYPASS_COINT_CHECK = True
@@ -215,6 +215,7 @@ def simulate_histogram(zscores, n_steps, n_paths):
     paths = np.zeros((n_paths, n_steps))
     for t in range(n_steps):
         paths[:, t] = np.clip(np.random.choice(zscores, size=n_paths), -ZSCORE_MAX, ZSCORE_MAX)
+    print(f"Simulated Z-Score Range: Min={paths.min():.2f}, Max={paths.max():.2f}")
     return paths
 
 
@@ -291,6 +292,7 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.ylabel("Sharpe Ratio")
     plt.title("Portfolio Effect by Entry Z-Score (2s)")
     plt.legend()
+    plt.grid()
     plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-portfolio_effect.png")
     plt.close()
 
@@ -302,6 +304,7 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.title("Historical vs. Simulated Histogram Z-Score Distribution")
     plt.xlabel("Z-Score")
     plt.ylabel("Density")
+    plt.grid()
     plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-zscore_histogram.png")
     plt.close()
 
