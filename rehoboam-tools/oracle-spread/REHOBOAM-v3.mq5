@@ -35,14 +35,14 @@ input string SymbolA = "GBPUSD";    // Symbol for Asset A
 input string SymbolB = "EURUSD";    // Symbol for Asset B
 input int LookbackPeriod = 600;     // Lookback for mean and std dev of spread (2s bars, ~20 minutes)
 input int RegressionPeriod = 3600;  // Lookback for hedge ratio calculation (2s bars, ~2 hours)
-input double DefaultEntryZScore = 2.0; // Default entry threshold for |Z-Score|
+input double DefaultEntryZScore = 9.0; // Default entry threshold for |Z-Score|
 input double StopZScore = 4.8;      // Stop-loss threshold for |Z-Score|
 input double TakeProfitZScore = 0.0; // Take profit Z-score threshold
 input double RiskPercent = 1.0;     // Risk % of account balance per trade
 input double MinCorrelation = 0.2;  // Minimum correlation to allow trading
 input bool BypassCorrelationCheck = false; // Bypass correlation check
 input bool BypassCointCheck = true;  // Bypass cointegration check
-input long MagicNumber = 12345;     // Magic number for positions
+input long MagicNumber = 1099;     // Magic number for positions
 input double RiskRewardRatio = 2.0; // Take profit multiple of stop loss
 input StopLossType SL_Type = SL_ZScore; // Stop loss type
 input TakeProfitType TP_Type = TP_Multiple; // Take profit type
@@ -61,34 +61,40 @@ double spreads[];
 int spread_idx = 0;
 
 //+------------------------------------------------------------------+
-//| Read optimal Z-score from file                                   |
+//| Read optimal Z-score from XML file                               |
 //+------------------------------------------------------------------+
 void UpdateEntryZScore()
 {
-   CFileTxt file;
-   if(file.Open("optimal_zscore.json", FILE_READ | FILE_COMMON))
+   string filename = SymbolA + "-" + SymbolB + "-optimal_zscore.txt";
+
+   // ✅ FILE_COMMON allows access to shared "Common\Files" directory
+   int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI|FILE_COMMON);
+
+   if(handle != INVALID_HANDLE)
    {
-      string json = file.ReadString();
-      file.Close();
-      int pos = StringFind(json, "\"optimal_z\":");
-      if(pos != -1)
+      string value = FileReadString(handle);
+      FileClose(handle);
+
+      PrintFormat("✅ Read from %s: raw='%s' (len=%d)", filename, value, StringLen(value));
+
+      double new_z = StringToDouble(value);
+
+      if(new_z >= 0 && new_z <= 8)
       {
-         string value = StringSubstr(json, pos + 12, StringLen(json) - pos - 13);
-         double new_z = StringToDouble(value);
-         if(new_z >= 0 && new_z <= 8)
-         {
-            EntryZScore = new_z;
-            Print("Updated EntryZScore to ", EntryZScore);
-         }
-         else
-            Print("Error: Z-Score ", new_z, " out of range [0, 8]");
+         EntryZScore = new_z;
+         PrintFormat("✅ Updated EntryZScore = %.4f for %s,%s", EntryZScore, SymbolA, SymbolB);
       }
       else
-         Print("Error: Failed to parse JSON: ", json);
+      {
+         PrintFormat("⚠️ Z-Score %.4f out of range [0, 8] for %s,%s", new_z, SymbolA, SymbolB);
+      }
    }
    else
-      Print("Error: Failed to open optimal_zscore.json, error code: ", GetLastError());
+   {
+      PrintFormat("❌ Failed to open %s (Error %d)", filename, GetLastError());
+   }
 }
+
 
 //+------------------------------------------------------------------+
 //| Check if market is open for both symbols                         |

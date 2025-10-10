@@ -8,16 +8,43 @@ import json
 import time
 from datetime import datetime, timedelta
 import os
+import sys
 
 #chnage to allow user input
 print("\nWELCOME TO ORACLE SPREAD OPTIMIZER TOOL.")
-print("\nENTER SYMBOL A: ")
-SYMBOL_A = input()
-print("\nENTER SYMBOL B: ")
-SYMBOL_B = input()
+
+#get symbols
+if len(sys.argv)>1:
+    SYMBOL_A = sys.argv[1]
+    print("SYMBOL A = ", SYMBOL_A)
+    SYMBOL_B = sys.argv[2]
+    print("SYMBOL B = ", SYMBOL_B)
+else:
+        print("No command-line argument provided. CHOSING DEFAULT VALUES...")
+        SYMBOL_A = 'GBPUSD'
+        SYMBOL_B = 'EURUSD'
+
+
 
 print("the rest of the inputs are hard coded in the python file. edit that if you need them changed...")
 print("\tNOTE: the parameters MUST match what is in the MT5 expert advisor inputs..\n")
+
+#CREATE RESULTS AND OPTIMAL_ZSCORE DIRECTORIES IN THE CURRENT DIRECTORY
+optimal_zscore_dir = os.path.join(os.getcwd(),"optimal_zscores")
+results_dir = os.path.join(os.getcwd(), 'results')
+
+try:
+    os.makedirs(optimal_zscore_dir, exist_ok=True)
+    print(f"Directory '{optimal_zscore_dir}' ensured to exist.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+try:
+    os.makedirs(results_dir, exist_ok=True)
+    print(f"Directory '{results_dir}' ensured to exist.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
 
 # Configuration
 LOOKBACK_PERIOD = 600  # ~20 min at 2s
@@ -30,16 +57,26 @@ MIN_CORRELATION = 0.2
 MIN_COINT_PVALUE = 0.05
 BYPASS_COINT_CHECK = True
 BYPASS_CORR_CHECK = False
-SHARED_FILE = "optimal_zscore.txt"
+SHARED_FILE = f"{SYMBOL_A}-{SYMBOL_B}-optimal_zscore.txt"
 ZSCORE_MAX = 5.0
 LOT_SIZE = 0.1
 PIP_VALUE = 10.0  # USD per pip for 1 lot
 PIP_SIZE = 0.0001
-MQL5_DIR = r"D:\MetaQuotes\terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Files"    #chnaghe to your working mql5 folder
 
-#show the user inputs
+#------------------------------
+#MQL5 COMMONS DIRECTORY
+#-----------------------
+
+# Build path to MetaTrader Common Files directory
+common_files = os.path.expandvars(r"%AppData%\MetaQuotes\Terminal\Common\Files")
+
+# Ensure directory exists
+os.makedirs(common_files, exist_ok=True)
 
 
+##------------------
+## INITIALIZE
+##--------------------
 
 # Initialize MT5
 def init_mt5():
@@ -254,7 +291,7 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.ylabel("Sharpe Ratio")
     plt.title("Portfolio Effect by Entry Z-Score (2s)")
     plt.legend()
-    plt.savefig("portfolio_effect.png")
+    plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-portfolio_effect.png")
     plt.close()
 
     # Histogram of historical vs. simulated Z-Scores
@@ -265,7 +302,7 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.title("Historical vs. Simulated Histogram Z-Score Distribution")
     plt.xlabel("Z-Score")
     plt.ylabel("Density")
-    plt.savefig("zscore_histogram.png")
+    plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-zscore_histogram.png")
     plt.close()
 
     # Equity curves for each Z-Score with trades
@@ -280,46 +317,43 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.ylabel("Equity (USD)")
     plt.title("Average Equity Curves by Entry Z-Score (Initial Equity = $0)")
     plt.legend()
-    plt.savefig("equity_curves.png")
+    plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-equity_curves.png")
     plt.close()
 
 
 # Write optimal Z-score to shared file
 def write_optimal_z(results):
-    max_sharpe = -float('inf')
-    optimal_z = None
-    for z in results:
-        if results[z]['mean_pnl'] > 0 and results[z]['sharpe'] > max_sharpe:
-            max_sharpe = results[z]['sharpe']
-            optimal_z = z
-    if optimal_z is None:
-        max_pnl = -float('inf')
+    try:
+        max_sharpe = -float('inf')
+        optimal_z = None
         for z in results:
-            if results[z]['mean_pnl'] > max_pnl:
-                max_pnl = results[z]['mean_pnl']
-                optimal_z = round(z,1)
-    if optimal_z is None:
-        optimal_z = min(results.keys())
+            if results[z]['mean_pnl'] > 0 and results[z]['sharpe'] > max_sharpe:
+                max_sharpe = results[z]['sharpe']
+                optimal_z = z
+        if optimal_z is None:
+            max_pnl = -float('inf')
+            for z in results:
+                if results[z]['mean_pnl'] > max_pnl:
+                    max_pnl = results[z]['mean_pnl']
+                    optimal_z = round(z,1)
+        if optimal_z is None:
+            optimal_z = min(results.keys())
 
-    # Save to current directory
-    try:
-        with open("optimal_zscore.txt", "w") as f:
-            f.write(str(optimal_z))
-        print(f"\nSaved optimal_zscore.txt to {SHARED_FILE}")
+        # Save to both directories
+        zscore_filename = f"{SYMBOL_A}-{SYMBOL_B}-optimal_zscore.txt"
+        for file_path in [
+            os.path.join(optimal_zscore_dir, zscore_filename),
+            os.path.join(common_files,zscore_filename)
+        ]:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(f"{optimal_z:.1f}")
+            print(f"\nWrote optimal Z-score {optimal_z:.1f} to {file_path}")
+        return optimal_z
+
     except Exception as e:
-        print(f"Error saving optimal_zscore.txt to {SHARED_FILE}: {e}")
+        print(f"Error writing optimal Z-score: {str(e)}")
+        return 0.0
 
-    # Save to MQL5 directory
-    try:
-        os.makedirs(MQL5_DIR, exist_ok=True)
-        mql5_txt_path = os.path.join(MQL5_DIR, "optimal_zscore.txt")
-        with open(mql5_txt_path, "w") as f:
-            f.write(str(optimal_z))
-        print(f"Saved optimal_zscore.txt to {mql5_txt_path}")
-    except Exception as e:
-        print(f"Error saving optimal_zscore.txt to {MQL5_DIR}: {e}")
-
-    return optimal_z
 
 
 # Main function
