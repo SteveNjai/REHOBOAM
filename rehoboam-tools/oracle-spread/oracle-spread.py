@@ -47,8 +47,8 @@ except Exception as e:
 
 
 # Configuration
-LOOKBACK_PERIOD = 600  # ~20 min at 2s
-REGRESSION_PERIOD = 3600  # ~2 hours at 2s
+LOOKBACK_PERIOD = 5720  # 2s bars
+REGRESSION_PERIOD = 7020  # 2s bars
 STOP_ZSCORE = 4.8
 RISK_REWARD_RATIO = 2.0
 N_PATHS = 100
@@ -128,7 +128,7 @@ def get_spread_data(symbol_a, symbol_b):
         print(f"M1 data: {len(df_a)} bars for {symbol_a}, {len(df_b)} bars for {symbol_b}")
         return process_data(df_a, df_b)
 
-    # Process tick data
+    # Process tick data and resample to 2s
     df_ticks_a = pd.DataFrame(ticks_a)[['time_msc', 'bid', 'ask']]
     df_ticks_b = pd.DataFrame(ticks_b)[['time_msc', 'bid', 'ask']]
     df_ticks_a['time'] = pd.to_datetime(df_ticks_a['time_msc'], unit='ms')

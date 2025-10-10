@@ -33,8 +33,8 @@ enum TakeProfitType
 // Inputs
 input string SymbolA = "GBPUSD";    // Symbol for Asset A
 input string SymbolB = "EURUSD";    // Symbol for Asset B
-input int LookbackPeriod = 600;     // Lookback for mean and std dev of spread (2s bars, ~20 minutes)
-input int RegressionPeriod = 3600;  // Lookback for hedge ratio calculation (2s bars, ~2 hours)
+input int LookbackPeriod = 5720;     // Lookback for mean and std dev of spread (2s bars)
+input int RegressionPeriod = 7020;  // Lookback for hedge ratio calculation (2s bars )
 input double DefaultEntryZScore = 9.0; // Default entry threshold for |Z-Score|
 input double StopZScore = 4.8;      // Stop-loss threshold for |Z-Score|
 input double TakeProfitZScore = 0.0; // Take profit Z-score threshold
@@ -68,7 +68,7 @@ void UpdateEntryZScore()
    string filename = SymbolA + "-" + SymbolB + "-optimal_zscore.txt";
 
    // ✅ FILE_COMMON allows access to shared "Common\Files" directory
-   int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI|FILE_COMMON);
+   int handle = FileOpen(filename, FILE_READ | FILE_TXT | FILE_ANSI | FILE_COMMON);
 
    if(handle != INVALID_HANDLE)
    {
