@@ -6,7 +6,7 @@
 
 # Get the project directory (the folder where this script resides)
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON="$PROJECT_DIR/Scripts/python"
+PYTHON="$PROJECT_DIR/venv/bin/python"
 SCRIPT_DIR="$PROJECT_DIR"
 SYMBOL_FILE="$PROJECT_DIR/oracle-spread/symbols.txt"
 
