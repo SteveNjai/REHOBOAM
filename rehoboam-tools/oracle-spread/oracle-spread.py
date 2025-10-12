@@ -10,27 +10,25 @@ from datetime import datetime, timedelta
 import os
 import sys
 
-#chnage to allow user input
+# Change to allow user input
 print("\nWELCOME TO ORACLE SPREAD OPTIMIZER TOOL.")
 
-#get symbols
-if len(sys.argv)>1:
+# Get symbols
+if len(sys.argv) > 1:
     SYMBOL_A = sys.argv[1]
     print("SYMBOL A = ", SYMBOL_A)
     SYMBOL_B = sys.argv[2]
     print("SYMBOL B = ", SYMBOL_B)
 else:
-        print("No command-line argument provided. CHOSING DEFAULT VALUES...")
-        SYMBOL_A = 'GBPUSD'
-        SYMBOL_B = 'EURUSD'
+    print("No command-line argument provided. CHOOSING DEFAULT VALUES...")
+    SYMBOL_A = 'GBPUSD'
+    SYMBOL_B = 'EURUSD'
 
+print("The rest of the inputs are hard coded in the python file. Edit that if you need them changed...")
+print("\tNOTE: The parameters MUST match what is in the MT5 expert advisor inputs..\n")
 
-
-print("the rest of the inputs are hard coded in the python file. edit that if you need them changed...")
-print("\tNOTE: the parameters MUST match what is in the MT5 expert advisor inputs..\n")
-
-#CREATE RESULTS AND OPTIMAL_ZSCORE DIRECTORIES IN THE CURRENT DIRECTORY
-optimal_zscore_dir = os.path.join(os.getcwd(),"optimal_zscores")
+# CREATE RESULTS AND OPTIMAL_ZSCORE DIRECTORIES IN THE CURRENT DIRECTORY
+optimal_zscore_dir = os.path.join(os.getcwd(), "optimal_zscores")
 results_dir = os.path.join(os.getcwd(), 'results')
 
 try:
@@ -45,14 +43,14 @@ try:
 except Exception as e:
     print(f"An error occurred: {e}")
 
-
 # Configuration
-LOOKBACK_PERIOD = 5720  # 2s bars
-REGRESSION_PERIOD = 7020  # 2s bars
+RESAMPLING = 2  # Resampling period in seconds (e.g., 2 for 2s bars, 60 for 1m bars)
+LOOKBACK_PERIOD = 5720  # Number of resampled bars for mean and std dev of spread
+REGRESSION_PERIOD = 7020  # Number of resampled bars for hedge ratio calculation
 STOP_ZSCORE = 4.8
 RISK_REWARD_RATIO = 2.0
 N_PATHS = 200
-N_STEPS = 3600  # ~2hrs at 2s bars
+N_STEPS = 3600  # ~2hrs at RESAMPLING seconds per bar
 MIN_CORRELATION = 0.2
 MIN_COINT_PVALUE = 0.05
 BYPASS_COINT_CHECK = True
@@ -63,29 +61,24 @@ LOT_SIZE = 0.1
 PIP_VALUE = 10.0  # USD per pip for 1 lot
 PIP_SIZE = 0.0001
 
-#------------------------------
-#MQL5 COMMONS DIRECTORY
-#-----------------------
-
+# ------------------------------
+# MQL5 COMMONS DIRECTORY
+# ----------------------
 # Build path to MetaTrader Common Files directory
 common_files = os.path.expandvars(r"%AppData%\MetaQuotes\Terminal\Common\Files")
 
 # Ensure directory exists
 os.makedirs(common_files, exist_ok=True)
 
-
-##------------------
-## INITIALIZE
-##--------------------
-
-# Initialize MT5
+# ------------------
+# INITIALIZE
+# --------------------
 def init_mt5():
     if not mt5.initialize():
         print("MT5 initialization failed")
         return False
     print("MT5 initialized")
     return True
-
 
 # Custom covariance function
 def custom_covariance(x, y):
@@ -97,11 +90,10 @@ def custom_covariance(x, y):
     mean_y = np.mean(y)
     return np.sum((x - mean_x) * (y - mean_y)) / (n - 1)
 
-
 # Calculate hedge ratio and Z-scores
 def get_spread_data(symbol_a, symbol_b):
     utc_to = datetime.now()
-    utc_from = utc_to - timedelta(seconds=REGRESSION_PERIOD * 2)
+    utc_from = utc_to - timedelta(seconds=REGRESSION_PERIOD * RESAMPLING)
     retries = 3
     for attempt in range(retries):
         ticks_a = mt5.copy_ticks_range(symbol_a, utc_from, utc_to, mt5.COPY_TICKS_ALL)
@@ -111,7 +103,7 @@ def get_spread_data(symbol_a, symbol_b):
             break
         print(
             f"Attempt {attempt + 1}/{retries}: Insufficient tick data for {symbol_a} ({len(ticks_a)}) or {symbol_b} ({len(ticks_b)}). Retrying.")
-        utc_from -= timedelta(seconds=REGRESSION_PERIOD * 2)
+        utc_from -= timedelta(seconds=REGRESSION_PERIOD * RESAMPLING)
         time.sleep(1)
     else:
         print(f"Insufficient tick data after {retries} attempts. Falling back to M1 data.")
@@ -128,21 +120,20 @@ def get_spread_data(symbol_a, symbol_b):
         print(f"M1 data: {len(df_a)} bars for {symbol_a}, {len(df_b)} bars for {symbol_b}")
         return process_data(df_a, df_b)
 
-    # Process tick data and resample to 2s
+    # Process tick data and resample to RESAMPLING seconds
     df_ticks_a = pd.DataFrame(ticks_a)[['time_msc', 'bid', 'ask']]
     df_ticks_b = pd.DataFrame(ticks_b)[['time_msc', 'bid', 'ask']]
     df_ticks_a['time'] = pd.to_datetime(df_ticks_a['time_msc'], unit='ms')
     df_ticks_b['time'] = pd.to_datetime(df_ticks_b['time_msc'], unit='ms')
     df_ticks_a.set_index('time', inplace=True)
     df_ticks_b.set_index('time', inplace=True)
-    df_resampled_a = df_ticks_a.resample('2s').last().ffill().dropna()
-    df_resampled_b = df_ticks_b.resample('2s').last().ffill().dropna()
+    df_resampled_a = df_ticks_a.resample(f'{RESAMPLING}s').last().ffill().dropna()
+    df_resampled_b = df_ticks_b.resample(f'{RESAMPLING}s').last().ffill().dropna()
     df_a = pd.DataFrame({'close': (df_resampled_a['bid'] + df_resampled_a['ask']) / 2})
     df_b = pd.DataFrame({'close': (df_resampled_b['bid'] + df_resampled_b['ask']) / 2})
-    print(f"Tick data: {len(df_a)} 2s bars for {symbol_a} from {df_a.index[0]} to {df_a.index[-1]}")
-    print(f"Tick data: {len(df_b)} 2s bars for {symbol_b} from {df_b.index[0]} to {df_b.index[-1]}")
+    print(f"Tick data: {len(df_a)} {RESAMPLING}s bars for {symbol_a} from {df_a.index[0]} to {df_a.index[-1]}")
+    print(f"Tick data: {len(df_b)} {RESAMPLING}s bars for {symbol_b} from {df_b.index[0]} to {df_b.index[-1]}")
     return process_data(df_a, df_b)
-
 
 # Process data (tick or M1)
 def process_data(df_a, df_b):
@@ -152,7 +143,7 @@ def process_data(df_a, df_b):
         return None, None, None, None
     df_a = df_a.loc[common_idx]
     df_b = df_b.loc[common_idx]
-    print(f"Aligned data: {len(df_a)} 2s bars for {SYMBOL_A}, {len(df_b)} 2s bars for {SYMBOL_B}")
+    print(f"Aligned data: {len(df_a)} {RESAMPLING}s bars for {SYMBOL_A}, {len(df_b)} {RESAMPLING}s bars for {SYMBOL_B}")
 
     # Cointegration test
     coint_pvalue = coint(df_a['close'], df_b['close'])[1]
@@ -205,7 +196,6 @@ def process_data(df_a, df_b):
 
     return zscores, mu, sigma, beta
 
-
 # Histogram-based Z-Score simulation
 def simulate_histogram(zscores, n_steps, n_paths):
     zscores = zscores[np.abs(zscores) < ZSCORE_MAX]  # Filter outliers
@@ -217,7 +207,6 @@ def simulate_histogram(zscores, n_steps, n_paths):
         paths[:, t] = np.clip(np.random.choice(zscores, size=n_paths), -ZSCORE_MAX, ZSCORE_MAX)
     print(f"Simulated Z-Score Range: Min={paths.min():.2f}, Max={paths.max():.2f}")
     return paths
-
 
 # Simulate portfolio effect with multiple trades per path
 def simulate_portfolio(paths, mu, sigma, entry_zscores, stop_zscore, risk_reward_ratio):
@@ -282,7 +271,6 @@ def simulate_portfolio(paths, mu, sigma, entry_zscores, stop_zscore, risk_reward
             f"Entry Z-Score {entry_z:.1f}: {total_trades} trades, Avg Trades/Path: {avg_trades_per_path:.2f}, Sharpe: {sharpe:.4f}, Mean PNL: {mean_pnl:.2f} USD")
     return results, equity_curves
 
-
 # Plot results
 def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     # Portfolio effect
@@ -290,10 +278,10 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.plot(entry_zscores, [results[z]['sharpe'] for z in entry_zscores], label='Sharpe Ratio', color='#4CAF50')
     plt.xlabel("Entry Z-Score")
     plt.ylabel("Sharpe Ratio")
-    plt.title("Portfolio Effect by Entry Z-Score (2s)")
+    plt.title(f"Portfolio Effect by Entry Z-Score ({RESAMPLING}s)")
     plt.legend()
     plt.grid()
-    plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-portfolio_effect.png")
+    plt.savefig(os.path.join(results_dir, f"{SYMBOL_A}-{SYMBOL_B}-portfolio_effect.png"))
     plt.close()
 
     # Histogram of historical vs. simulated Z-Scores
@@ -305,7 +293,7 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
     plt.xlabel("Z-Score")
     plt.ylabel("Density")
     plt.grid()
-    plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-zscore_histogram.png")
+    plt.savefig(os.path.join(results_dir, f"{SYMBOL_A}-{SYMBOL_B}-zscore_histogram.png"))
     plt.close()
 
     # Equity curves for each Z-Score with trades
@@ -316,13 +304,12 @@ def plot_results(paths, results, equity_curves, mu, entry_zscores, zscores):
             # Average equity curve across paths with trades
             avg_equity = np.mean(equity_curves[z], axis=0)
             plt.plot(range(N_STEPS), avg_equity, label=f'Z={z:.1f}', color=colors[idx], alpha=0.7)
-    plt.xlabel("Steps (2s intervals)")
+    plt.xlabel(f"Steps ({RESAMPLING}s intervals)")
     plt.ylabel("Equity (USD)")
     plt.title("Average Equity Curves by Entry Z-Score (Initial Equity = $0)")
     plt.legend()
-    plt.savefig(results_dir+'\\'+SYMBOL_A+"-"+SYMBOL_B+"-equity_curves.png")
+    plt.savefig(os.path.join(results_dir, f"{SYMBOL_A}-{SYMBOL_B}-equity_curves.png"))
     plt.close()
-
 
 # Write optimal Z-score to shared file
 def write_optimal_z(results):
@@ -338,7 +325,7 @@ def write_optimal_z(results):
             for z in results:
                 if results[z]['mean_pnl'] > max_pnl:
                     max_pnl = results[z]['mean_pnl']
-                    optimal_z = round(z,1)
+                    optimal_z = round(z, 1)
         if optimal_z is None:
             optimal_z = min(results.keys())
 
@@ -346,7 +333,7 @@ def write_optimal_z(results):
         zscore_filename = f"{SYMBOL_A}-{SYMBOL_B}-optimal_zscore.txt"
         for file_path in [
             os.path.join(optimal_zscore_dir, zscore_filename),
-            os.path.join(common_files,zscore_filename)
+            os.path.join(common_files, zscore_filename)
         ]:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(f"{optimal_z:.1f}")
@@ -356,8 +343,6 @@ def write_optimal_z(results):
     except Exception as e:
         print(f"Error writing optimal Z-score: {str(e)}")
         return 0.0
-
-
 
 # Main function
 def main():
@@ -390,7 +375,6 @@ def main():
         f"\nOptimal Entry Z-Score: {optimal_z:.1f}, Sharpe: {results[optimal_z]['sharpe']:.4f}, Mean PNL: {results[optimal_z]['mean_pnl']:.2f} USD, Avg Trades/Path: {results[optimal_z]['avg_trades_per_path']:.2f}")
 
     mt5.shutdown()
-
 
 if __name__ == "__main__":
     while True:
