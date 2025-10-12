@@ -15,9 +15,10 @@ echo 1. Run Zscore_analyzer (show zscore statistics)
 echo 2. Run fetch_mt5.py (fetch history for rehoboam_optimizer tool)
 echo 3. Run run_optimize.py (optimize on history data for rehoboam_optimizer)
 echo 4. Run Oracle-Spread (this tool simulates the PnL for each zscore at that time and find the best zscore for that period)
-echo 5. Exit
+echo 5. Run CRONUS (automated pythopnbased trading bot)
+echo 6. Exit
 echo.
-set /p choice=Enter your choice (1-4):
+set /p choice=Enter your choice (1-6):
 
 if "%choice%"=="1" (
     echo Running zscore_analyzer.py...
@@ -69,12 +70,21 @@ if "%choice%"=="1" (
     pause >nul
     goto menu
 
-
 ) else if "%choice%"=="5" (
+    echo Running CRONUS...
+    pushd "%SCRIPT_DIR%\CRONUS"
+    %PYTHON% orchestrator.py
+    popd
+    echo.
+    echo Script completed. Press any key to return to menu.
+    pause >nul
+    goto menu
+
+) else if "%choice%"=="6" (
     echo Exiting...
     exit /b
 ) else (
-    echo Invalid choice. Please enter 1, 2, 3, 4 or 5.
+    echo Invalid choice. Please enter 1, 2, 3, 4, 5 or 6.
     echo.
     pause >nul
     goto menu

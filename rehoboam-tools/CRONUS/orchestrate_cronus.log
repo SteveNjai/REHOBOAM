@@ -1,0 +1,60 @@
+2025-10-12 20:31:04,614 [INFO] Starting Cronus orchestration
+2025-10-12 20:31:04,614 [INFO] Starting cronus_trading.py for pair GBPUSD-EURUSD
+2025-10-12 20:31:04,614 [INFO] Started thread for pair GBPUSD-EURUSD
+2025-10-12 20:31:04,615 [INFO] Starting cronus_trading.py for pair USTEC-US500
+2025-10-12 20:31:04,615 [INFO] Started thread for pair USTEC-US500
+2025-10-12 20:31:06,344 [INFO] Output from GBPUSD-EURUSD: WELCOME TO CRONUS AUTOMATED TRADING.
+MT5 initialized
+Not enough M1 data for hedge ratio
+2025-10-12 20:31:06,344 [INFO] cronus_trading.py for GBPUSD-EURUSD exited with code 1
+2025-10-12 20:31:06,348 [INFO] Output from USTEC-US500: WELCOME TO CRONUS AUTOMATED TRADING.
+MT5 initialized
+Not enough M1 data for hedge ratio
+2025-10-12 20:31:06,348 [INFO] cronus_trading.py for USTEC-US500 exited with code 1
+2025-10-12 20:31:06,349 [INFO] All threads completed
+2025-10-12 20:35:30,964 [INFO] Starting Cronus orchestration
+2025-10-12 20:35:30,965 [INFO] Starting cronus.py for pair GBPUSD-EURUSD
+2025-10-12 20:35:30,965 [INFO] Started thread for pair GBPUSD-EURUSD
+2025-10-12 20:35:30,965 [INFO] Starting cronus.py for pair USTEC-US500
+2025-10-12 20:35:30,965 [INFO] Started thread for pair USTEC-US500
+2025-10-12 20:35:32,627 [INFO] Output from GBPUSD-EURUSD: WELCOME TO CRONUS AUTOMATED TRADING.
+MT5 initialized
+Not enough M1 data for hedge ratio
+2025-10-12 20:35:32,627 [INFO] cronus.py for GBPUSD-EURUSD exited with code 1
+2025-10-12 20:35:32,638 [INFO] Output from USTEC-US500: WELCOME TO CRONUS AUTOMATED TRADING.
+MT5 initialized
+Not enough M1 data for hedge ratio
+2025-10-12 20:35:32,638 [INFO] cronus.py for USTEC-US500 exited with code 1
+2025-10-12 20:35:32,638 [INFO] All threads completed
+2025-10-12 21:07:48,733 [INFO] Starting Cronus orchestration
+2025-10-12 21:07:48,734 [INFO] Starting cronus.py for pair GBPUSD-EURUSD
+2025-10-12 21:07:48,734 [INFO] Started thread for pair GBPUSD-EURUSD
+2025-10-12 21:07:48,734 [INFO] Starting cronus.py for pair USTEC-US500
+2025-10-12 21:07:48,734 [INFO] Started thread for pair USTEC-US500
+2025-10-12 21:07:50,489 [ERROR] Error from USTEC-US500: 2025-10-12 21:07:50,272 - INFO - 
+WELCOME TO CRONUS AUTOMATED TRADING.
+2025-10-12 21:07:50,289 - INFO - MT5 initialized
+2025-10-12 21:07:50,289 - ERROR - Not enough M1 data for hedge ratio
+2025-10-12 21:07:50,489 [INFO] cronus.py for USTEC-US500 exited with code 1
+2025-10-12 21:07:50,495 [ERROR] Error from GBPUSD-EURUSD: 2025-10-12 21:07:50,272 - INFO - 
+WELCOME TO CRONUS AUTOMATED TRADING.
+2025-10-12 21:07:50,289 - INFO - MT5 initialized
+2025-10-12 21:07:50,289 - ERROR - Not enough M1 data for hedge ratio
+2025-10-12 21:07:50,496 [INFO] cronus.py for GBPUSD-EURUSD exited with code 1
+2025-10-12 21:07:50,496 [INFO] All threads completed
+2025-10-12 21:13:15,479 [INFO] Starting Cronus orchestration
+2025-10-12 21:13:15,480 [INFO] Starting cronus.py for pair GBPUSD-EURUSD
+2025-10-12 21:13:15,480 [INFO] Started thread for pair GBPUSD-EURUSD
+2025-10-12 21:13:15,480 [INFO] Starting cronus.py for pair USTEC-US500
+2025-10-12 21:13:15,480 [INFO] Started thread for pair USTEC-US500
+2025-10-12 21:13:20,305 [ERROR] Error from USTEC-US500: 2025-10-12 21:13:16,963 - INFO - 
+WELCOME TO CRONUS AUTOMATED TRADING.
+2025-10-12 21:13:20,038 - INFO - MT5 initialized
+2025-10-12 21:13:20,085 - ERROR - Not enough M1 data for hedge ratio
+2025-10-12 21:13:20,305 [INFO] cronus.py for USTEC-US500 exited with code 1
+2025-10-12 21:13:20,309 [ERROR] Error from GBPUSD-EURUSD: 2025-10-12 21:13:16,961 - INFO - 
+WELCOME TO CRONUS AUTOMATED TRADING.
+2025-10-12 21:13:20,038 - INFO - MT5 initialized
+2025-10-12 21:13:20,085 - ERROR - Not enough M1 data for hedge ratio
+2025-10-12 21:13:20,309 [INFO] cronus.py for GBPUSD-EURUSD exited with code 1
+2025-10-12 21:13:20,309 [INFO] All threads completed
