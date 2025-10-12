@@ -43,8 +43,7 @@ WORKDIR /opt/rehoboam/rehoboam-tools
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
     pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir MetaTrader5
+    pip install --no-cache-dir -r requirements.txt
 
 # ---------------------------
 # Install MetaTrader 5 for Linux
@@ -56,7 +55,16 @@ RUN wget -q https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5li
     rm -f mt5linux.sh
 
 # ---------------------------
-# Permissions & cleanup
+# Link MT5 Python packages to your venv
+# ---------------------------
+# This assumes MT5 installs Python packages under /opt/mt5/terminal64/...
+# Adjust path if your mt5linux.sh installs elsewhere
+RUN MT5_PYTHON_PATH=$(find /opt -type d -name "site-packages" | grep mt5 | head -n 1) && \
+    echo $MT5_PYTHON_PATH && \
+    ln -s $MT5_PYTHON_PATH /opt/rehoboam/rehoboam-tools/venv/lib/python3.12/site-packages/mt5
+
+# ---------------------------
+# Make runner script executable
 # ---------------------------
 RUN chmod +x rehoboam-tools/rehoboam_tools_runner.sh && \
     find /opt/rehoboam -type f -name "*.pyc" -delete && \
