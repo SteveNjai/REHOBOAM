@@ -4,7 +4,6 @@
 //|                        Copyright 2025, Stephen Njai               |
 //|                                             https://github.com/SteveNjai |
 //+------------------------------------------------------------------+
-
 #property copyright "Copyright 2025, Stephen Njai"
 #property link      "https://github.com/SteveNjai"
 #property version   "4.2"
