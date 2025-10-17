@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
-//|                                             REHOBOAM-v5.0.mq5    |
+//|                                             REHOBOAM-v4.5.mq5    |
 //|                        Copyright 2025, Stephen Njai               |
 //|                                             https://github.com/SteveNjai |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025, Stephen Njai"
 #property link      "https://github.com/SteveNjai"
-#property version   "5.0"
+#property version   "4.5"
 #property strict
 #property description "Pairs Trading EA utilizing correlation between GBPUSD/EURUSD."
 #property description "Uses M1 bars. Hedge ratio calculated with 234 M1 bars."
