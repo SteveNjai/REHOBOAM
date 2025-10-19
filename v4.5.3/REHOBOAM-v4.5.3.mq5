@@ -54,10 +54,10 @@ enum BetaMethod
 // Inputs
 input string SymbolA = "GBPUSD";    // Symbol for Asset A
 input string SymbolB = "EURUSD";    // Symbol for Asset B
-input int LookbackPeriod = 470;     // Lookback for mean and std dev of spread (M1 bars)
-input int RegressionPeriod = 420;   // Lookback for hedge ratio calculation (M1 bars)
+input int LookbackPeriod = 1680;     // Lookback for mean and std dev of spread (M1 bars)
+input int RegressionPeriod = 2370;   // Lookback for hedge ratio calculation (M1 bars)
 input double DefaultEntryZScore = 2.0; // Default entry threshold for |Z-Score|
-input double MinEntryZScore = 3.0;  // Minimum Z-score threshold for trade entry
+input double MinEntryZScore = 0.0;  // Minimum Z-score threshold for trade entry
 input double StopZScore = 7.2;      // Stop-loss threshold for |Z-Score|
 input double TakeProfitZScore = 2.0; // Take profit Z-score threshold
 input double RiskPercent = 1.0;     // Risk % of account balance per trade
@@ -85,8 +85,8 @@ input bool EnableLogging = true;    // Enable logging to file (disable for faste
 input bool DynamicEntryZScore = true; // Enable dynamic Z-score via Monte Carlo simulation
 input double ProfitCheckThrottleSeconds = 1.0; // Throttle every-tick profit checks (seconds, 0=every tick)
 input BetaMethod BetaCalculationMethod = KALMAN; // Beta calculation method
-input double KalmanProcessNoise = 0.001; // Kalman filter process noise (Q)
-input double KalmanMeasurementNoise = 0.01; // Kalman filter measurement noise (R)
+input double KalmanProcessNoise = 9.510; // Kalman filter process noise (Q)
+input double KalmanMeasurementNoise = 0.52; // Kalman filter measurement noise (R)
 
 // Globals
 double Beta = 0.0;
